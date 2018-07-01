@@ -1,2 +1,6 @@
 # live
 基于libevent的媒体转发服务器
+
+live_gateway为流媒体转发服务器主程序，采用插件化方式支持rtmp以及国内平安城市最大供应商（接触过的人都知道）的直播流拉取
+live_comet为一个http转发请求服务器，实现从内网到内网的请求，可以用于一些调试场合，比如在你的android设备主机上植入comet设备端，当调试时可以通过comet直接访问android的的shell命令或者文件拉取
+
