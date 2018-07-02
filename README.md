@@ -16,4 +16,9 @@ live_sink_file    点播输出插件（直接将本地文件通过http输出，�
 live_sink_flv     Flv输出插件（将avc/aac编码为http/flv输出，可使用flash播放器或者ijkplayer移动播放播放网关流）
 live_sink_raw     原始码流输出插件（将网关从源输入的信号原样输出，该格式的文件可供live_source_file再次使用，一般用于网关信号录制使用）
 
+工程编译：
+支持Widnows x64和Centos两种平台：
+windows：使用visual studio 2015打开Solution/live.sln即可编译，生成结果位于c++/x64/bin下；
+linux：未使用configure，进入Src目录下执行make，生成文件位于gateway/gateway下，插件位于gateway/Plugins下；
+
 如有任何问题，欢迎联系yunsean@163.com
