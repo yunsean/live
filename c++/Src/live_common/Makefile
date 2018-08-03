@@ -29,6 +29,7 @@ CFILES =
 CPPFILES =	SmartBlk.cpp \
 			ShareBlk.cpp \
 			SmartErr.cpp \
+			BitStream.cpp \
 			ByteStream.cpp \
 			Profile.cpp \
 			Byte.cpp \
@@ -60,6 +61,7 @@ $(STATICLIB): $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
 	cp -f ShareBlk.h ../../linux/inc/
 	cp -f Byte.h ../../linux/inc/
 	cp -f ByteStream.h ../../linux/inc/
+	cp -f BitStream.h ../../linux/inc/
 	cp -f Profile.h ../../linux/inc/
 	cp -f xchar.h ../../linux/inc/
 	cp -f xevent.h ../../linux/inc/

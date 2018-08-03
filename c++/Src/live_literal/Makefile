@@ -18,7 +18,7 @@ CCFLAGS += $(COMPILER_FLAGS) -fPIC -g -Wall -Wno-deprecated -std=c++11
 # EACH DIRECTORY WITH HEADERS MUST BE APPENDED IN THIS MANNER TO THE CCFLAGS
 
 CCFLAGS += -I.
-CCFLAGS += -I..
+CCFLAGS += -I.. -I./pugixml
 CCFLAGS += -I../live_common -I../live_logging
 CCLIBS	+= -fPIC
 
@@ -27,9 +27,12 @@ C++FLAGS = $(CCFLAGS)
 CFILES =
 
 CPPFILES =	Markup.cpp \
+			MD5CodeArith.cpp \
+			SHA1CodeArith.cpp \
 			./json/json_reader.cpp \
 			./json/json_value.cpp \
-			./json/json_writer.cpp 
+			./json/json_writer.cpp \
+			pugixml/pugixml.cpp
 
 all: $(SHAREDLIB) $(STATICLIB)
 
@@ -45,8 +48,12 @@ $(STATICLIB): $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
 	cp -f $(STATICLIB) ../../linux/lib
 	mkdir -p ../../linux/inc
 	cp -f Markup.h ../../linux/inc/
+	cp -f MD5CodeArith.h ../../linux/inc/
+	cp -f SHA1CodeArith.h ../../linux/inc/
 	mkdir -p ../../linux/inc/json	
 	cp -Rf ./json/*.h ../../linux/inc/json/
+	mkdir -p ../../linux/inc/pugixml	
+	cp -Rf ./pugixml/*.hpp ../../linux/inc/pugixml/
 
 install: $(STATICLIB)
 clean:

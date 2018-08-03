@@ -55,11 +55,11 @@ bool CHxhtReader::StartFetch(event_base* base) {
 void CHxhtReader::WantKeyFrame() {
 
 }
-bool CHxhtReader::PTZControl(const PTZAction eAction, const int nValue) {
-	return true;
+ISourceProxy::ControlResult CHxhtReader::PTZControl(const unsigned int token, const unsigned int action, const int speed) {
+	return ISourceProxy::Failed;
 }
-bool CHxhtReader::VideoEffect(const int nBright, const int nContrast, const int nSaturation, const int nHue) {
-	return true;
+ISourceProxy::ControlResult CHxhtReader::VideoEffect(const unsigned int token, const int bright, const int contrast, const int saturation, const int hue) {
+	return ISourceProxy::Failed;
 }
 bool CHxhtReader::Discard() {
 	delete this;
@@ -72,7 +72,7 @@ bool CHxhtReader::httpGet(const char* url) {
 	if (uri == nullptr) return wlet(false, _T("[%s] Parse url [%s] failed."), m_moniker.c_str(), xtstring(url).c_str());
 	evhttp_connection* connection = nullptr;
 	evhttp_request* request = nullptr;
-	auto finalize(std::destruct_invoke([request, connection]() {
+	auto finalize(std::destruct_invoke([&request, &connection]() {
 		if (request != nullptr) {
 			evhttp_request_free(request);
 		}

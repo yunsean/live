@@ -148,12 +148,7 @@ void CByteStream::write_string(std::string value) {
 	memcpy(p, value.data(), value.length());
 	p += value.length();
 }
-void CByteStream::write_bytes(uint8_t* data, int size) {
-	assert(require(size));
-	memcpy(p, data, size);
-	p += size;
-}
-void CByteStream::write_bytes(char* data, int size) {
+void CByteStream::write_bytes(const void* data, int size) {
 	assert(require(size));
 	memcpy(p, data, size);
 	p += size;

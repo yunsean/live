@@ -138,7 +138,7 @@ void CClientProxy::handle() {
 		return cpw(_T("无效的播放流请求！"));
 	}
 	cpw(_T("[%s] 播放流请求"), moniker.c_str());
-	bool result(CRawFactory::singleton().bindWriter(this, device, moniker, query));
+	bool result(CNalFactory::singleton().bindWriter(this, device, moniker, query));
 	if (!result) {
 		sendHTTPFailedResponse(L"Connect to device failed.");
 		return cpe(_T("[%s] 获取设备失败！"), moniker.c_str());

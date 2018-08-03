@@ -14,7 +14,7 @@
 #define BUFFER_THRESHOLD		2
 #define RELEASE_AFTER_IDEL_MS	(5 * 1000)
 
-CRawWriter::CRawWriter(const xtstring& moniker, const bool reusable)
+CFlvWriter::CFlvWriter(const xtstring& moniker, const bool reusable)
 	: m_startupTime(time(NULL))
 	, m_strMoniker(moniker)
 	, m_base(nullptr)
@@ -36,40 +36,40 @@ CRawWriter::CRawWriter(const xtstring& moniker, const bool reusable)
 	cpm(_T("[%s] 创建Raw Writer"), m_strMoniker.c_str());
 	wli(_T("[%s] Build Raw Writer."), m_strMoniker.c_str());
 }
-CRawWriter::~CRawWriter() {
+CFlvWriter::~CFlvWriter() {
 	wli(_T("[%s] Remove Raw Writer."), m_strMoniker.c_str());
 	for (cliptr cli : m_activedClient) {
 		cli->bev = nullptr;
-		CRawFactory::DelPlayingCount();
+		CNalFactory::DelPlayingCount();
 	}
 	for (auto cli : m_pendingClient) {
 		evutil_closesocket(cli.first);
-		CRawFactory::DelPlayingCount();
+		CNalFactory::DelPlayingCount();
 	}
 	m_activedClient.clear();
 	m_pendingClient.clear();
-	CRawFactory::AddTotalDataSize(m_receivedDataSize, m_sendDataSize);
+	CNalFactory::AddTotalDataSize(m_receivedDataSize, m_sendDataSize);
 	cpm(_T("[%s] 释放Raw Writer"), m_strMoniker.c_str());
 }
 
-bool CRawWriter::Startup(ISinkProxyCallback* callback) {
+bool CFlvWriter::Startup(ISinkProxyCallback* callback) {
 	if (callback == nullptr) return false;
 	m_lpCallback = callback;
 	return true;
 }
-bool CRawWriter::AddClient(CHttpClient* client) {
+bool CFlvWriter::AddClient(CHttpClient* client) {
 	std::string header(client->getHttpSucceedResponse(_T("video/x-flv")));
 	std::lock_guard<std::mutex> lock(m_lockClient);
 	m_pendingClient.insert(std::make_pair(client->fd(), header));
-	CRawFactory::AddPlayingCount();
+	CNalFactory::AddPlayingCount();
 	return true;
 }
 //////////////////////////////////////////////////////////////////////////
-bool CRawWriter::StartWrite(event_base* base) {
+bool CFlvWriter::StartWrite(event_base* base) {
 	m_base = base;
 	return true;
 }
-void CRawWriter::OnRawPack(PackType type, const uint8_t* const data, const int size, const bool key /* = true */) {
+void CFlvWriter::OnRawPack(PackType type, const uint8_t* const data, const int size, const bool key /* = true */) {
 	if (type == Header) {
 		int szData(ntohl(size + 1));
 		static const int eType(Header);
@@ -79,10 +79,10 @@ void CRawWriter::OnRawPack(PackType type, const uint8_t* const data, const int s
 	}
 	PostMediaData(type, data, size, true);
 }
-void CRawWriter::OnError(LPCTSTR lpszReason) {
+void CFlvWriter::OnError(LPCTSTR lpszReason) {
 	PostMediaData(Error, reinterpret_cast<const uint8_t*>(lpszReason), _tcslen(lpszReason) * sizeof(TCHAR), false);
 }
-bool CRawWriter::GetStatus(LPSTR* json, void(**free)(LPSTR)) {
+bool CFlvWriter::GetStatus(LPSTR* json, void(**free)(LPSTR)) {
 	Json::Value value(GetStatus());
 	std::string text(value.toStyledString());
 	const CHAR* lpsz(text.c_str());
@@ -95,7 +95,7 @@ bool CRawWriter::GetStatus(LPSTR* json, void(**free)(LPSTR)) {
 	};
 	return true;
 }
-void CRawWriter::PostMediaData(const PackType eType, const uint8_t* const lpData, const size_t nSize, const bool bKey) {
+void CFlvWriter::PostMediaData(const PackType eType, const uint8_t* const lpData, const size_t nSize, const bool bKey) {
 	m_receivedDataSize += nSize;
 	m_tickCount = std::tickCount();
 	if (m_pendingClient.size() == 0 && m_activedClient.size() == 0) {
@@ -127,11 +127,11 @@ void CRawWriter::PostMediaData(const PackType eType, const uint8_t* const lpData
 	m_activedClient.erase(std::remove_if(m_activedClient.begin(), m_activedClient.end(),
 		[this, needCheck, maxBuffer, &header, lpData, nSize](cliptr cli) -> bool {
 		if (cli->over) {
-			CRawFactory::DelPlayingCount();
+			CNalFactory::DelPlayingCount();
 			return true;
 		} else if (cli->invalidAt != 0) {
 			if (m_tickCount - cli->invalidAt > CLOSE_AFTER_INVALID_MS) {
-				CRawFactory::DelPlayingCount();
+				CNalFactory::DelPlayingCount();
 				return true;
 			}
 		} else {
@@ -142,7 +142,7 @@ void CRawWriter::PostMediaData(const PackType eType, const uint8_t* const lpData
 			} if (cli->invalidAt == 0) {
 				if (bufferevent_write(cli->bev, header, 5) != 0 ||
 					bufferevent_write(cli->bev, lpData, nSize) != 0) {
-					CRawFactory::DelPlayingCount();
+					CNalFactory::DelPlayingCount();
 					return true;
 				}
 				m_sendDataSize += nSize;
@@ -159,7 +159,7 @@ void CRawWriter::PostMediaData(const PackType eType, const uint8_t* const lpData
 			if (bev == NULL) {
 				evutil_closesocket(client.first);
 				wle(_T("Create buffer event for client failed."));
-				CRawFactory::DelPlayingCount();
+				CNalFactory::DelPlayingCount();
 				continue;
 			}
 			cliptr cli(new ClientData(bev));
@@ -167,7 +167,7 @@ void CRawWriter::PostMediaData(const PackType eType, const uint8_t* const lpData
 			if (bufferevent_enable(bev, EV_READ | EV_WRITE) != 0 ||
 				bufferevent_write(bev, client.second.c_str(), client.second.length()) != 0 ||
 				bufferevent_write(bev, m_headCache, m_headCache) != 0) {
-				CRawFactory::DelPlayingCount();
+				CNalFactory::DelPlayingCount();
 			} else {
 				m_sendDataSize += client.second.length();
 				m_sendDataSize += m_headCache;
@@ -178,30 +178,30 @@ void CRawWriter::PostMediaData(const PackType eType, const uint8_t* const lpData
 		m_lpCallback->WantKeyFrame();
 	}
 }
-void CRawWriter::DoDiscard() {
+void CFlvWriter::DoDiscard() {
 	if (m_lpCallback != nullptr) {
 		m_lpCallback->OnDiscarded();
 	}
-	CRawFactory::singleton().unbindWriter(this);
+	CNalFactory::singleton().unbindWriter(this);
 }
 
-bool CRawWriter::Discard() {
+bool CFlvWriter::Discard() {
 	DoDiscard();
 	return true;
 }
 
-void CRawWriter::on_error(struct bufferevent* bev, short what, void* context) {
+void CFlvWriter::on_error(struct bufferevent* bev, short what, void* context) {
 	ClientData* cli(reinterpret_cast<ClientData*>(context));
 	if (what & (BEV_EVENT_ERROR | BEV_EVENT_EOF | BEV_EVENT_TIMEOUT)) {
 		cli->over = true;
 	}
 }
-void CRawWriter::on_write(struct bufferevent* event, void* context) {
+void CFlvWriter::on_write(struct bufferevent* event, void* context) {
 	ClientData* cli(reinterpret_cast<ClientData*>(context));
 	cli->invalidAt = 0;
 }
 
-Json::Value CRawWriter::GetStatus() {
+Json::Value CFlvWriter::GetStatus() {
 	auto number2Size([](uint64_t size) -> xstring<char> {
 		if (size > 1024LL * 1024 * 1024 * 512) {
 			return xstring<char>::format("%.2f TB", size / (1024 * 1024 * 1024 * 1024.f));

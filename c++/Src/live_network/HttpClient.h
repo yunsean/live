@@ -25,6 +25,7 @@ public:
 	virtual void set(evutil_socket_t fd, struct sockaddr* addr);
 	virtual bool run(event_base* base);
 	virtual event_base* base();
+	virtual evutil_socket_t fd(bool detach = true);
 	virtual void close();
 	virtual void release();
 
@@ -38,11 +39,12 @@ protected:
 	const int port() const { return m_clientPort; }
 	const std::map<xtstring, xtstring>& params() const { return m_params; }
 	const std::map<xtstring, xtstring>& payloads() const { return m_payloads; }
-	xtstring param(const xtstring& key) const;
-	xtstring payload(const xtstring& key) const;
+	LPCTSTR param(LPCTSTR key) const;
+	LPCTSTR payload(LPCTSTR key) const;
 	const xtstring& action() const { return m_action; }
 	evbuffer* input();
 	evbuffer* output();
+	bufferevent* bev(bool detach = true);
 
 public:
 	const static std::map<xtstring, xtstring>	s_mapNull;
@@ -51,9 +53,7 @@ public:
 	bool sendHttpSucceedResponse(const xtstring& contentType = _T("text/html"), const int64_t contentLen = -1, const std::map<xtstring, xtstring>& mapPayload = s_mapNull);
 	bool sendHttpContent(const void* data, const size_t size);
 	std::string getHttpSucceedResponse(const xtstring& contentType = _T("text/html"), const int64_t contentLen = -1, const std::map<xtstring, xtstring>& mapPayload = s_mapNull);
-	bufferevent* bev(bool detach = true);
-	evutil_socket_t fd(bool detach = true);
-
+	
 protected:
 	virtual void handle() = 0;
 

@@ -2,6 +2,7 @@
 //
 #include <fstream>
 #include "net.h"
+#include "xchar.h"
 #include "Engine.h"
 #include "ConsoleUI.h"
 #include "Writelog.h"

@@ -3,6 +3,6 @@
 #include "RawFactory.h"
 
 ISinkFactory* GetSinkFactory() {
-	return &CRawFactory::singleton();
+	return &CNalFactory::singleton();
 }
 

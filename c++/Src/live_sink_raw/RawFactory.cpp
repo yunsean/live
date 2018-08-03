@@ -14,12 +14,12 @@
 #include "json/value.h"
 #include "xaid.h"
 
-unsigned int CRawFactory::m_lLicenseCount(0);
-std::atomic<unsigned int> CRawFactory::m_lInvokeCount(0);
-std::atomic<unsigned int> CRawFactory::m_lPlayingCount(0);
-std::atomic<uint64_t> CRawFactory::m_lTotalReceived(0);
-std::atomic<uint64_t> CRawFactory::m_lTotalSend(0);
-CRawFactory::CRawFactory()
+unsigned int CNalFactory::m_lLicenseCount(0);
+std::atomic<unsigned int> CNalFactory::m_lInvokeCount(0);
+std::atomic<unsigned int> CNalFactory::m_lPlayingCount(0);
+std::atomic<uint64_t> CNalFactory::m_lTotalReceived(0);
+std::atomic<uint64_t> CNalFactory::m_lTotalSend(0);
+CNalFactory::CNalFactory()
 	: m_lpszFactoryName(_T("Raw Sender"))
 	, m_lpCallback(nullptr)
 	, m_listeners()
@@ -27,18 +27,18 @@ CRawFactory::CRawFactory()
 	, m_lkWriters()
 	, m_liveWriter(){
 }
-CRawFactory::~CRawFactory() {
+CNalFactory::~CNalFactory() {
 }
 
-CRawFactory& CRawFactory::singleton() {
-	static CRawFactory instance;
+CNalFactory& CNalFactory::singleton() {
+	static CNalFactory instance;
 	return instance;
 }
 
-LPCTSTR CRawFactory::FactoryName() const {
+LPCTSTR CNalFactory::FactoryName() const {
 	return m_lpszFactoryName;
 }
-bool CRawFactory::Initialize(ISinkFactoryCallback* callback) {
+bool CNalFactory::Initialize(ISinkFactoryCallback* callback) {
 #ifdef _WIN32
 	if (evthread_use_windows_threads() != 0) {
 #else 
@@ -97,7 +97,10 @@ bool CRawFactory::Initialize(ISinkFactoryCallback* callback) {
 	}
 	return true;
 }
-bool CRawFactory::GetStatusInfo(LPSTR* json, void(**free)(LPSTR)) {
+bool CNalFactory::HandleRequest(ISinkHttpRequest* request) {
+	return false;
+}
+bool CNalFactory::GetStatusInfo(LPSTR* json, void(**free)(LPSTR)) {
 	auto number2Size([](uint64_t size) -> xstring<char> {
 		if (size > 1024LL * 1024 * 1024 * 512) {
 			return xstring<char>::format("%.2f TB", size / (1024 * 1024 * 1024 * 1024.f));
@@ -139,17 +142,17 @@ bool CRawFactory::GetStatusInfo(LPSTR* json, void(**free)(LPSTR)) {
 	};
 	return true;
 }
-void CRawFactory::Uninitialize() {
+void CNalFactory::Uninitialize() {
 	m_listeners.clear();
 }
-void CRawFactory::Destroy() {
+void CNalFactory::Destroy() {
 }
 
-void CRawFactory::listen_callback(struct evconnlistener* conn, evutil_socket_t fd, struct sockaddr* addr, int addrlen, void* context) {
-	CRawFactory* thiz(reinterpret_cast<CRawFactory*>(context));
+void CNalFactory::listen_callback(struct evconnlistener* conn, evutil_socket_t fd, struct sockaddr* addr, int addrlen, void* context) {
+	CNalFactory* thiz(reinterpret_cast<CNalFactory*>(context));
 	thiz->listen_callback(conn, fd, addr, addrlen);
 }
-void CRawFactory::listen_callback(struct evconnlistener* conn, evutil_socket_t fd, struct sockaddr* addr, int addrlen) {
+void CNalFactory::listen_callback(struct evconnlistener* conn, evutil_socket_t fd, struct sockaddr* addr, int addrlen) {
 	xtstring ip(inet_ntoa(((sockaddr_in*)addr)->sin_addr));
 	int port(ntohs(((sockaddr_in*)addr)->sin_port));
 	CClientProxy* client(CClientProxy::newInstance(fd, addr));
@@ -165,7 +168,7 @@ void CRawFactory::listen_callback(struct evconnlistener* conn, evutil_socket_t f
 	finalize.cancel();
 }
 
-bool CRawFactory::bindWriter(CHttpClient* client, const xtstring& device, const xtstring& moniker, const xtstring& params) {
+bool CNalFactory::bindWriter(CHttpClient* client, const xtstring& device, const xtstring& moniker, const xtstring& params) {
 	std::unique_lock<std::recursive_mutex> lock(m_lkWriters);
 	auto source(m_liveWriter.find(moniker));
 	if (source != m_liveWriter.end()) {
@@ -174,7 +177,7 @@ bool CRawFactory::bindWriter(CHttpClient* client, const xtstring& device, const 
 		}
 		return false;
 	}
-	CWriterPtr spWriter(new(std::nothrow) CRawWriter(moniker, true));
+	CWriterPtr spWriter(new(std::nothrow) CFlvWriter(moniker, true));
 	if (spWriter == NULL) {
 		return wlet(false, _T("Create CWriter() failed."));
 	}
@@ -193,7 +196,7 @@ bool CRawFactory::bindWriter(CHttpClient* client, const xtstring& device, const 
 	m_liveWriter.insert(std::make_pair(moniker, spWriter));
 	return true;
 }
-void CRawFactory::unbindWriter(CRawWriter* source) {
+void CNalFactory::unbindWriter(CFlvWriter* source) {
 	std::lock_guard<std::recursive_mutex> lock(m_lkWriters);
 	xtstring moniker(source->GetMoniker());
 	auto found(m_liveWriter.find(moniker));
@@ -204,19 +207,19 @@ void CRawFactory::unbindWriter(CRawWriter* source) {
 	}
 }
 
-void CRawFactory::AddPlayingCount() {
+void CNalFactory::AddPlayingCount() {
 	++m_lPlayingCount;
 	++m_lInvokeCount;
 	UpdateTitle();
 }
-void CRawFactory::DelPlayingCount() {
+void CNalFactory::DelPlayingCount() {
 	--m_lPlayingCount;
 	UpdateTitle();
 }
-void CRawFactory::AddTotalDataSize(uint64_t received, uint64_t send) {
+void CNalFactory::AddTotalDataSize(uint64_t received, uint64_t send) {
 	m_lTotalReceived += received;
 	m_lTotalSend += send;
 }
-void CRawFactory::UpdateTitle() {
+void CNalFactory::UpdateTitle() {
 	CConsoleUI::Singleton().SetTitle(_T("数据转发网关 - 总连接:%u, 正在播放:%u"), (unsigned int)m_lInvokeCount, (unsigned int)m_lPlayingCount);
 }

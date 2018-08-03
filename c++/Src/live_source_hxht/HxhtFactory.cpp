@@ -8,28 +8,28 @@
 #include "ConsoleUI.h"
 #include "Writelog.h"
 
-CHxhtFactory::CHxhtFactory()
+COnvifFactory::COnvifFactory()
 	: m_lpszFactoryName(_T("Hxht Input Source"))
 	, m_lpCallback(nullptr)
 	, m_lkHxhtServers()
 	, m_vHxhtServers() {
 }
-CHxhtFactory::~CHxhtFactory() {
+COnvifFactory::~COnvifFactory() {
 	for (auto server : m_vHxhtServers) {
 		delete server;
 	}
 	m_vHxhtServers.clear();
 }
 
-CHxhtFactory& CHxhtFactory::Singleton() {
-	static CHxhtFactory instance;
+COnvifFactory& COnvifFactory::Singleton() {
+	static COnvifFactory instance;
 	return instance;
 }
 
-LPCTSTR CHxhtFactory::FactoryName() const {
+LPCTSTR COnvifFactory::FactoryName() const {
 	return m_lpszFactoryName;
 }
-bool CHxhtFactory::Initialize(ISourceFactoryCallback* callback) {
+bool COnvifFactory::Initialize(ISourceFactoryCallback* callback) {
 #ifdef _WIN32
 	if (evthread_use_windows_threads() != 0) {
 #else 
@@ -81,7 +81,7 @@ bool CHxhtFactory::Initialize(ISourceFactoryCallback* callback) {
 
 	return true;
 }
-ISourceFactory::SupportState CHxhtFactory::DidSupport(LPCTSTR device, LPCTSTR moniker, LPCTSTR param) {
+ISourceFactory::SupportState COnvifFactory::DidSupport(LPCTSTR device, LPCTSTR moniker, LPCTSTR param) {
 	if (device != NULL && _tcslen(device) > 0 && _tcscmp(device, _T("sky")) != 0) {
 		return unsupport;
 	}
@@ -92,7 +92,7 @@ ISourceFactory::SupportState CHxhtFactory::DidSupport(LPCTSTR device, LPCTSTR mo
 	}
 	return ISourceFactory::unsupport;
 }
-ISourceProxy* CHxhtFactory::CreateLiveProxy(ISourceProxyCallback* callback, LPCTSTR device, LPCTSTR moniker, LPCTSTR param) {
+ISourceProxy* COnvifFactory::CreateLiveProxy(ISourceProxyCallback* callback, LPCTSTR device, LPCTSTR moniker, LPCTSTR param) {
 	if (device != NULL && _tcslen(device) > 0 && _tcscmp(device, _T("sky")) != 0) {
 		return nullptr;
 	}
@@ -102,10 +102,10 @@ ISourceProxy* CHxhtFactory::CreateLiveProxy(ISourceProxyCallback* callback, LPCT
 	}
 	return nullptr;
 }
-ISourceProxy* CHxhtFactory::CreatePastProxy(ISourceProxyCallback* callback, LPCTSTR device, LPCTSTR moniker, LPCTSTR param, uint64_t beginTime, uint64_t endTime /*= 0*/) {
+ISourceProxy* COnvifFactory::CreatePastProxy(ISourceProxyCallback* callback, LPCTSTR device, LPCTSTR moniker, LPCTSTR param, uint64_t beginTime, uint64_t endTime /*= 0*/) {
 	return nullptr;
 }
-bool CHxhtFactory::GetSourceList(LPTSTR* _xml, void(**free)(LPTSTR), bool onlineOnly, LPCTSTR device /*= NULL*/) {
+bool COnvifFactory::GetSourceList(LPTSTR* _xml, void(**free)(LPTSTR), bool onlineOnly, LPCTSTR device /*= NULL*/) {
 	if (!_xml)return false;
 	if (device != NULL && _tcslen(device) > 0 && _tcsicmp(device, _T("sky")) != 0)return false;
 	CMarkup xml;
@@ -127,16 +127,16 @@ bool CHxhtFactory::GetSourceList(LPTSTR* _xml, void(**free)(LPTSTR), bool online
 	};
 	return true;
 }
-bool CHxhtFactory::GetStatusInfo(LPSTR* json, void(**free)(LPSTR)) {
+bool COnvifFactory::GetStatusInfo(LPSTR* json, void(**free)(LPSTR)) {
 	return false;
 }
-void CHxhtFactory::Uninitialize() {
+void COnvifFactory::Uninitialize() {
 
 }
-void CHxhtFactory::Destroy() {
+void COnvifFactory::Destroy() {
 }
 
-void CHxhtFactory::RemoveServer(CHxhtServer* server) {
+void COnvifFactory::RemoveServer(CHxhtServer* server) {
 	std::lock_guard<std::mutex> lock(m_lkHxhtServers);
 	auto found(std::find(m_vHxhtServers.begin(), m_vHxhtServers.end(), server));
 	if (found != m_vHxhtServers.end()) m_vHxhtServers.erase(found);

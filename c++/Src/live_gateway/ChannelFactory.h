@@ -25,6 +25,7 @@ public:
 	void uninitialize();
 
 public:
+	CChannel* getChannel(const xtstring& device, const xtstring& moniker, const xtstring& params);
 	ISinkProxyCallback* bindChannel(ISinkProxy* proxy, const xtstring& device, const xtstring& moniker, const xtstring& params);
 	void unbindChannel(CChannel* source);
 

@@ -22,6 +22,7 @@ public:
 
 public:
 	bool initialize(ISinkFactoryCallback* callback, bool usePlugin = true);
+	bool handleRequest(ISinkHttpRequest* request);
 	void statusInfo(Json::Value& info);
 	void uninitialize();
 

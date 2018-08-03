@@ -7,6 +7,7 @@
 #include "SmartPtr.h"
 #include "xaid.h"
 #include "net.h"
+#include "Byte.h"
 
 CGatewayServer::CGatewayServer()
 	: m_listenPort(0){

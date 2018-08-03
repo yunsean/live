@@ -12,13 +12,13 @@
 #include "SmartHdr.h"
 #include "SmartPtr.h"
 
-class CRawFactory : public ISinkFactory {
+class CNalFactory : public ISinkFactory {
 public:
-	CRawFactory();
-	~CRawFactory();
+	CNalFactory();
+	~CNalFactory();
 
 public:
-	static CRawFactory& singleton();
+	static CNalFactory& singleton();
 
 public:
 	static void AddPlayingCount();
@@ -28,11 +28,13 @@ public:
 
 public:
 	bool bindWriter(CHttpClient* client, const xtstring& device, const xtstring& moniker, const xtstring& params);
-	void unbindWriter(CRawWriter* writer);
+	void unbindWriter(CFlvWriter* writer);
 
 protected:
 	virtual LPCTSTR FactoryName() const;
 	virtual bool	Initialize(ISinkFactoryCallback* callback);
+	virtual int		HandleSort() { return 0; }
+	virtual bool	HandleRequest(ISinkHttpRequest* request);
 	virtual bool	GetStatusInfo(LPSTR* json, void(**free)(LPSTR));
 	virtual void	Uninitialize();
 	virtual void	Destroy();
@@ -49,7 +51,7 @@ private:
 	static std::atomic<uint64_t> m_lTotalSend;
 
 protected:
-	typedef CSmartPtr<CRawWriter> CWriterPtr;
+	typedef CSmartPtr<CFlvWriter> CWriterPtr;
 
 private:
 	const LPCTSTR m_lpszFactoryName;

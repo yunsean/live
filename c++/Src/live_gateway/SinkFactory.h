@@ -12,6 +12,7 @@ public:
 
 public:
 	bool initialize();
+	bool handleRequest(ISinkHttpRequest* request);
 	void status(Json::Value& status);
 
 protected:

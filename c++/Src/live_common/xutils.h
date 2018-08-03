@@ -57,13 +57,13 @@ namespace utils {
 	bool isBytesEquals(void* pa, void* pb, int size);
 	void randomGenerate(char* bytes, int size);			//All value in[0x0f, 0xf0]
 
-	unsigned short uintFrom2BytesBE(unsigned char* data);
-	unsigned int uintFrom3BytesBE(unsigned char* data);
-	unsigned int uintFrom4BytesBE(unsigned char* data);
+	unsigned short uintFrom2BytesBE(const unsigned char* data);
+	unsigned int uintFrom3BytesBE(const unsigned char* data);
+	unsigned int uintFrom4BytesBE(const unsigned char* data);
 
-	unsigned short uintFrom2BytesLE(unsigned char* data);
-	unsigned int uintFrom3BytesLE(unsigned char* data);
-	unsigned int uintFrom4BytesLE(unsigned char* data);
+	unsigned short uintFrom2BytesLE(const unsigned char* data);
+	unsigned int uintFrom3BytesLE(const unsigned char* data);
+	unsigned int uintFrom4BytesLE(const unsigned char* data);
 
 	unsigned char* uintTo2BytesBE(unsigned short value, unsigned char* data);
 	unsigned char* uintTo3BytesBE(unsigned int value, unsigned char* data);

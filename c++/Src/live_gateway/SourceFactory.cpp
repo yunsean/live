@@ -43,7 +43,7 @@ event_base** CSourceFactory::GetAllBase(int& count) {
 	return CEventBase::singleton().allBase(count);
 }
 event_base* CSourceFactory::GetPreferBase() {
-	return CEventBase::singleton().nextBase();
+	return CEventBase::singleton().preferBase();
 }
 void CSourceFactory::OnNewSource(LPCTSTR lpszDevice, LPCTSTR lpszMoniker, LPCTSTR lpszName, LPCTSTR lpszMeta /* = NULL */) {
 	cpw(_T("[%s] NewSource[%s] Coming"), lpszDevice, lpszName);

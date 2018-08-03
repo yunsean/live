@@ -11,10 +11,10 @@
 struct event;
 struct event_base;
 class CHttpClient;
-class CRawWriter : public ISinkProxy {
+class CFlvWriter : public ISinkProxy {
 public:
-	CRawWriter(const xtstring& moniker, const bool reusable);
-	~CRawWriter();
+	CFlvWriter(const xtstring& moniker, const bool reusable);
+	~CFlvWriter();
 
 public:
 	bool				Startup(ISinkProxyCallback* callback);
@@ -26,9 +26,10 @@ protected:
 	virtual CodecType	PreferCodec() { return CodecType::Raw; }
 	virtual bool		StartWrite(event_base* base);
 	virtual void		OnVideoFormat(const CodecID codec, const int width, const int height, const double fps) {}
+	virtual void		OnVideoConfig(const CodecID codec, const uint8_t* header, const int size) {}
 	virtual void		OnVideoFrame(const uint8_t* const data, const int size, const uint32_t pts) {}
-	virtual void		OnVideoFrame(const uint8_t* const lpY, const int nPitchY, const uint8_t* const lpU, const int nPitchU, const uint8_t* const lpV, const int nPitchV, const uint32_t pts) {}
 	virtual void		OnAudioFormat(const CodecID codec, const int channel, const int bitwidth, const int samplerate) {}
+	virtual void		OnAudioConfig(const CodecID codec, const uint8_t* header, const int size) {}
 	virtual void		OnAudioFrame(const uint8_t* const data, const int size, const uint32_t pts) {}
 	virtual void		OnRawPack(PackType type, const uint8_t* const data, const int size, const bool key = true);
 	virtual void		OnError(LPCTSTR reason);

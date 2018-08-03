@@ -105,11 +105,11 @@ bool CFileSource::StartFetch(event_base* base) {
 }
 void CFileSource::WantKeyFrame() {
 }
-bool CFileSource::PTZControl(const PTZAction eAction, const int nValue) {
-	return false;
+ISourceProxy::ControlResult CFileSource::PTZControl(const unsigned int token, const unsigned int action, const int speed) {
+	return ISourceProxy::Failed;
 }
-bool CFileSource::VideoEffect(const int nBright, const int nContrast, const int nSaturation, const int nHue) {
-	return false;
+ISourceProxy::ControlResult CFileSource::VideoEffect(const unsigned int token, const int bright, const int contrast, const int saturation, const int hue) {
+	return ISourceProxy::Failed;
 }
 bool CFileSource::Discard() {
 	m_bDiscard = true;

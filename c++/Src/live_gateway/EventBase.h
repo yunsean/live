@@ -23,7 +23,7 @@ public:
 
 public:
 	bool initialize(int threadCount = -1);
-	event_base* nextBase();
+	event_base* preferBase();		//获取当前线程对应的event_base，如果本线程未开启loop，则可能获取不到
 	event_base** allBase(int& count);
 	bool addListen(const char* ip, unsigned int port, void(*callback)(struct evconnlistener*, evutil_socket_t, struct sockaddr*, int, void*), void* context = NULL);
 	bool startup();
@@ -31,6 +31,7 @@ public:
 	void shutdown();
 
 protected:
+	event_base* nextBase();
 	bool addSocket(evutil_socket_t fd, short events, void(*callback)(evutil_socket_t, short, void*), void* context = NULL);
 	bool addTimer(unsigned int timeout, void (*callback)(evutil_socket_t, short, void*), void* context = NULL);
 	bool addHttp(char* ip, unsigned int port, void (*callback)(struct evhttp_request*, void*), void* context = NULL);
@@ -44,6 +45,7 @@ protected:
 		
 private:
 	std::vector<event_base*> m_eventBases;
+	std::map<unsigned int, event_base*> m_baseThreads;
 	std::atomic<int> m_threadCount;
 	std::vector<CSmartHdr<evconnlistener*, void>> m_listeners;
 	std::atomic<unsigned int> m_nextIndex;

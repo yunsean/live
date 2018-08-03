@@ -16,9 +16,9 @@
 
 CEventBase::CEventBase() 
 	: m_eventBases()
+	, m_baseThreads()
 	, m_threadCount(0)
 	, m_listeners()
-	, m_nextIndex(0)
 	, m_willQuit(false) {
 }
 
@@ -60,13 +60,13 @@ bool CEventBase::initialize(int threadCount /* = -1 */) {
 // #endif
 	event_set_log_callback(libevent_log_cb);
 	event_set_fatal_callback(libevent_fatal_cb);
-#ifdef _WIN32
-	if (evthread_use_windows_threads() != 0) {
-#else 
-	if (evthread_use_pthreads() != 0) {
-#endif
-		return wlet(false, _T("init multiple thread failed."));
-	}
+// #ifdef _WIN32
+// 	if (evthread_use_windows_threads() != 0) {
+// #else 
+// 	if (evthread_use_pthreads() != 0) {
+// #endif
+// 		return wlet(false, _T("init multiple thread failed."));
+// 	}
 
 	if (m_eventBases.size() > 0) {
 		return wlet(false, _T("The object has initialized."));
@@ -81,6 +81,11 @@ bool CEventBase::initialize(int threadCount /* = -1 */) {
 		m_eventBases.push_back(event_base_new());
 	}
 	return true;
+}
+event_base* CEventBase::preferBase() {
+	auto found(m_baseThreads.find(std::tid()));
+	if (found == m_baseThreads.end()) return nullptr;
+	return found->second;
 }
 event_base* CEventBase::nextBase() {
 	return m_eventBases.at(m_nextIndex++ % m_eventBases.size());
@@ -244,6 +249,8 @@ bool CEventBase::startup() {
 	for (auto base : m_eventBases) {
 		new xthread([this, base]() {
 			while (!m_willQuit) {
+				unsigned int tid(std::tid());
+				m_baseThreads.insert(std::make_pair(tid, base));
 				int result(event_base_loop(base, 0));
 				if (result < 0) {
 					cpe(_T("启动事件循环失败！"));

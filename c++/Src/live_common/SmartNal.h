@@ -19,7 +19,7 @@ private:
 			if(sz){
 				m_array				= new(std::nothrow) T1[sz * 2];
 				if (m_array){
-					m_space			= sz * 2;
+					m_space			= sz;
 					m_count			= sz;
 				}
 			}

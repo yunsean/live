@@ -37,8 +37,8 @@ protected:
 	virtual unsigned int    MaxFrameDelay(const unsigned int def) { return def; }
 	virtual bool			StartFetch(event_base* base);
 	virtual void			WantKeyFrame();
-	virtual bool			PTZControl(const PTZAction action, const int value);
-	virtual bool			VideoEffect(const int bright, const int contrast, const int saturation, const int hue);
+	virtual ControlResult	PTZControl(const unsigned int token, const unsigned int action, const int speed);
+	virtual ControlResult	VideoEffect(const unsigned int token, const int bright, const int contrast, const int saturation, const int hue);
 	virtual bool			Discard();
 
 protected:
@@ -60,12 +60,14 @@ private:
 	uint32_t m_outputChunkSize;
 	uint32_t m_streamId;
 	xtstring m_streamName;
-
-	std::vector<CSmartNal<uint8_t>> m_vHeaders;
+	bool m_firstAudioPacket;
+	std::vector<CSmartNal<uint8_t>> m_vConfigs;
 
 	std::recursive_mutex m_lkCallback;
 	ISourceProxyCallback* m_lpCallback;
 	bool m_bFetching;
 	CSmartHdr<event*, void> m_timer;
+
+	CByte m_outputCache;
 };
 

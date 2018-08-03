@@ -71,7 +71,7 @@ bool CSystemInfo::initialize() {
 	m_latestTotalTime = get_cpu_total_occupy();
 	m_latestProcesstime = get_cpu_process_occupy(m_pid);
 #endif
-	m_timer = evtimer_new(CEventBase::singleton().nextBase(), timer_callback, this);
+	m_timer = evtimer_new(CEventBase::singleton().preferBase(), timer_callback, this);
 	struct timeval tv = { 10, 0 };
 	evtimer_add(m_timer, &tv);
 	return true;

@@ -2,8 +2,8 @@
 #  
 
 NAME = liblive_codec
-STATICLIB = liblive_input.a
-SHAREDLIB = liblive_input.so
+STATICLIB = liblive_codec.a
+SHAREDLIB = liblive_codec.so
 C++ = gcc #$(CPLUS)
 CC = gcc #$(CCOMP)
 LINK = $(LINKER)
@@ -42,6 +42,8 @@ $(STATICLIB): $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
 	mkdir -p ../../linux/lib
 	cp -f $(STATICLIB) ../../linux/lib
 	mkdir -p ../../linux/inc
+	cp -f CodecInterface.h ../../linux/inc/
+	cp -f DecodeFactory.h ../../linux/inc/
 
 install: $(STATICLIB)
 clean:

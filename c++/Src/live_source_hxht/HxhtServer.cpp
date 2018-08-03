@@ -295,6 +295,6 @@ void CHxhtServer::onEnumFailed(const xtstring& message) {
 	} 
 	if (!result) {
 		cpe(_T("[%s] %s"), m_name.c_str(), message.c_str());
-		CHxhtFactory::Singleton().RemoveServer(this);
+		COnvifFactory::Singleton().RemoveServer(this);
 	}
 }

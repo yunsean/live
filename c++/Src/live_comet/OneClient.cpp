@@ -176,6 +176,7 @@ void COneClient::send_error(const int code, const std::string& reason) {
 	oss << version << " " << code << " " << reason << std::endl
 		<< "Server: comet" << std::endl
 		<< "Connection: close" << std::endl
+		<< "Access-Control-Allow-Origin: *" << std::endl
 		<< "Content-Length: 0" << std::endl
 		<< std::endl;
 	std::string response = oss.str();
@@ -187,8 +188,9 @@ void COneClient::send_header(bool chunked, const std::string& contentType) {
 	std::string version = m_headers["Version"];
 	std::ostringstream oss;
 	oss << version << " 200 OK" << std::endl
-		<< "Server: live.comet" << std::endl
+		<< "Server: comet" << std::endl
 		<< "Connection: keep-alive" << std::endl
+		<< "Access-Control-Allow-Origin: *" << std::endl
 		<< "Content-Type: " << contentType << std::endl;
 	if (chunked) oss << "Transfer-Encoding: chunked" << std::endl;
 	oss << std::endl;
@@ -199,8 +201,9 @@ void COneClient::send_result(const std::string& contentType, const std::string& 
 	std::string version = m_headers["Version"];
 	std::ostringstream oss;
 	oss << version << " 200 OK" << std::endl
-		<< "Server: live.comet" << std::endl
+		<< "Server: comet" << std::endl
 		<< "Connection: closed" << std::endl
+		<< "Access-Control-Allow-Origin: *" << std::endl
 		<< "Content-Length: " << content.length() << std::endl
 		<< "Content-Type: " << contentType << std::endl
 		<< std::endl;
@@ -219,7 +222,9 @@ void COneClient::onHeader() {
 		m_contentLength = static_cast<size_t>(::strtol(m_headers["Content-Length"].c_str(), NULL, 10));
 		if (m_contentLength > MAX_CONTENT_LENGTH) return send_error(400, "Bad Request");
 		m_workStage = ReadBody;
-		if (m_cacheSize < m_contentLength) {
+		if (m_contentLength < 1) {
+			handle();
+		} else if (m_cacheSize < m_contentLength) {
 			m_cacheSize = (m_contentLength / 512) * 512 + 512;
 			m_cache.reset(new char[m_cacheSize]);
 		}

@@ -123,7 +123,7 @@ void CInputFactory::loadFile(LPCTSTR file, ISourceFactoryCallback* callback) {
 	}
 	LPCTSTR name(plugin->FactoryName());
 	if (!plugin->Initialize(callback)) {
-		cpe(_T("加载输入插件[%s]失败"), lpszName);
+		cpe(_T("加载输入插件[%s]失败"), file);
 		return wle(_T("Initialize() from [%s] failed."), file);
 	}
 	cpj(_T("加载输入插件[%s]成功"), name);

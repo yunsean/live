@@ -9,6 +9,7 @@
 #include "RtmpFactory.h"
 #include "RtmpPublisher.h"
 #include "RtmpConnection.h"
+#include "ConsoleUI.h"
 #include "Markup.h"
 #include "Profile.h"
 #include "Writelog.h"

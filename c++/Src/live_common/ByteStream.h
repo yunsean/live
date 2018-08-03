@@ -36,8 +36,7 @@ public:
 	void write_3bytes(int32_t value);
 	void write_8bytes(int64_t value);
 	void write_string(std::string value);
-	void write_bytes(uint8_t* data, int size);
-	void write_bytes(char* data, int size);
+	void write_bytes(const void* data, int size);
 
 private:
 	void set_value(uint8_t* b, int nb_b);

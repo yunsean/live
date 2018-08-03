@@ -94,6 +94,7 @@ void CCaller::responseCaller() {
 	std::ostringstream oss;
 	oss << version << " 200 OK" << std::endl
 		<< "Server: comet" << std::endl
+		<< "Access-Control-Allow-Origin: *" << std::endl
 		<< "Connection: close" << std::endl;
 	for (auto kv : m_calleeHeader) {
 		auto key = kv.first;
@@ -113,6 +114,7 @@ void CCaller::responseCallee() {
 	std::ostringstream oss;
 	oss << version << " 200 OK" << std::endl
 		<< "Server: comet" << std::endl
+		<< "Access-Control-Allow-Origin: *" << std::endl
 		<< "Connection: close" << std::endl
 		<< "Content-Length: " << length << std::endl
 		<< "Content-Type: " << "application / json; charset = utf - 8" << std::endl

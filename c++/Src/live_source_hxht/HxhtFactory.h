@@ -11,13 +11,13 @@
 #include "xstring.h"
 #include "SmartPtr.h"
 
-class CHxhtFactory : public ISourceFactory {
+class COnvifFactory : public ISourceFactory {
 public:
-	CHxhtFactory();
-	~CHxhtFactory();
+	COnvifFactory();
+	~COnvifFactory();
 
 public:
-	static CHxhtFactory& Singleton();
+	static COnvifFactory& Singleton();
 
 public:
 	virtual LPCTSTR FactoryName() const;

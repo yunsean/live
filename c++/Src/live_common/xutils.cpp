@@ -29,14 +29,14 @@ namespace utils {
 		}
 	}
 
-	unsigned short uintFrom2BytesBE(unsigned char* data) {
+	unsigned short uintFrom2BytesBE(const unsigned char* data) {
 		unsigned int value(0);
 		value
-			= (((int)data[1] << 8) & 0x0000ff00)
-			+ (((int)data[2] << 0) & 0x000000ff);
+			= (((int)data[0] << 8) & 0x0000ff00)
+			+ (((int)data[1] << 0) & 0x000000ff);
 		return value;
 	}
-	unsigned int uintFrom3BytesBE(unsigned char* data) {
+	unsigned int uintFrom3BytesBE(const unsigned char* data) {
 		unsigned int value(0);
 		value
 			= (((int)data[0] << 16) & 0x00ff0000)
@@ -44,7 +44,7 @@ namespace utils {
 			+ (((int)data[2] << 0) & 0x000000ff);
 		return value;
 	}
-	unsigned int uintFrom4BytesBE(unsigned char* data) {
+	unsigned int uintFrom4BytesBE(const unsigned char* data) {
 		unsigned int value(0);
 		value
 			= (((int)data[0] << 24) & 0xff000000)
@@ -73,14 +73,14 @@ namespace utils {
 		return data;
 	}
 
-	unsigned short uintFrom2BytesLE(unsigned char* data) {
+	unsigned short uintFrom2BytesLE(const unsigned char* data) {
 		unsigned int value(0);
 		value
 			= (((int)data[0] << 0) & 0x000000ff)
 			+ (((int)data[1] << 8) & 0x0000ff00);
 		return value;
 	}
-	unsigned int uintFrom3BytesLE(unsigned char* data) {
+	unsigned int uintFrom3BytesLE(const unsigned char* data) {
 		unsigned int value(0);
 		value
 			= (((int)data[0] << 0) & 0x000000ff)
@@ -88,7 +88,7 @@ namespace utils {
 			+ (((int)data[2] << 16) & 0x00ff0000);
 		return value;
 	}
-	unsigned int uintFrom4BytesLE(unsigned char* data) {
+	unsigned int uintFrom4BytesLE(const unsigned char* data) {
 		unsigned int value(0);
 		value
 			= (((int)data[0] << 0) & 0x000000ff)

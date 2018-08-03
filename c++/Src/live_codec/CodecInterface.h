@@ -3,19 +3,25 @@
 #include "os.h"
 #include "xchar.h"
 
+#ifndef MKFCC
+#define MKFCC(a, b, c, d) (((uint32_t)a << 0) + ((uint32_t)b << 8) + ((uint32_t)c << 16) + ((uint32_t)d << 24))
+#endif
+
 interface IDecodeProxyCallback {
 	virtual ~IDecodeProxyCallback() {}
-	enum CodecID { LPCM = 1, YV12 = 2, MP3 = 3, AAC = 4, H264 = 5 };
-	virtual void				OnVideoFormat(const CodecID codec, const int width, const int height) = 0;
+	enum CodecID { LPCM = MKFCC('M', 'C', 'P', 'L'), YV12 = MKFCC('2', '1', 'V', 'Y'), AAC = MKFCC(' ', 'C', 'A', 'A'), AVC = MKFCC(' ', 'C', 'V', 'A') };
+	virtual void				OnVideoFormat(const CodecID codec, const int width, const int height, const double fps) = 0;
+	virtual void				OnVideoConfig(const CodecID codec, const uint8_t* header, const int size) = 0;
 	virtual void				OnVideoFrame(const uint8_t* const data, const int size, const uint32_t pts) = 0;
 	virtual void				OnAudioFormat(const CodecID codec, const int channel, const int bitwidth, const int samplerate) = 0;
+	virtual void				OnAudioConfig(const CodecID codec, const uint8_t* header, const int size) = 0;
 	virtual void				OnAudioFrame(const uint8_t* const data, const int size, const uint32_t pts) = 0;
 };
 
 interface IDecodeProxy {
-	enum CodecID { LPCM = 1, YV12 = 2, MP3 = 3, AAC = 4, H264 = 5 };
 	virtual ~IDecodeProxy() {}
 	virtual bool				Start() = 0;
+	virtual bool				CrossThread() = 0;
 	virtual bool				AddHeader(const uint8_t* const data, const int size) = 0;
 	virtual bool				AddVideo(const uint8_t* const data, const int size) { return false; }
 	virtual bool				AddAudio(const uint8_t* const data, const int size) { return false; }

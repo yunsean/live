@@ -20,7 +20,7 @@ bool CNalDemuxer::Start() {
 }
 bool CNalDemuxer::AddHeader(const uint8_t* const data, const int size) {
 	if (size < 11) return false;
-	if (data[0] != 'N' || data[1] != 'A' || data[2] != 'L' || data[3] != '1') return false;
+	if (data[3] != 'N' || data[2] != 'A' || data[1] != 'L' || data[0] != '1') return false;
 	uint32_t videoFourCC = 0;
 	CSmartNal<uint8_t> videoConfig;
 	uint32_t audioFourCC = 0;

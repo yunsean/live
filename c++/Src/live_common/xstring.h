@@ -32,11 +32,13 @@ class xstring : public std::basic_string<CT> {
 public:
 #ifdef _WIN32
 #define CodePage		int
+#define CODEPAGE_AUTO	CP_ACP
 #define CodePage_UTF8	CP_UTF8
 #define CodePage_GB2312	936
 #define CodePage_BIG5	950
 #else 
 #define CodePage		const char*
+#define CODEPAGE_AUTO	"UTF-8"
 #define CodePage_UTF8	"utf-8"
 #define CodePage_GB2312	"gb2312"
 #define CodePage_BIG5	"big5"
@@ -261,10 +263,10 @@ public:
 #endif
 	}
 	int Compare(const_pointer szThat) const {
-		return _tcscmp(this->c_str(), szThat);
+		return cmp(this->c_str(), szThat);
 	}
 	int CompareNoCase(const_pointer szThat) const {
-		return _tcsicmp(this->c_str(), szThat);
+		return cmpi(this->c_str(), szThat);
 	}
 	int Delete(int nIdx, int nCount = 1) {
 		if (nIdx < 0) nIdx = 0;
@@ -538,7 +540,7 @@ protected:
 	static std::string& dup(std::string& dst, const wchar_t* src, size_t len = 0, CodePage dstCp = CodePage_UTF8) {
 		if (len == 0 && src != nullptr)
 			len = wcslen(src);
-		if (src == nullptr || len == 0) {
+		if (src == nullptr || len <= 0) {
 			return dst.erase();
 		} else {
 			int olen(WideCharToMultiByte(dstCp, 0, src, (int)len, NULL, 0, NULL, NULL));
@@ -555,7 +557,7 @@ protected:
 	static std::wstring& dup(std::wstring& dst, const char* src, size_t len = 0, int srcCp = CP_UTF8) {
 		if (len == 0 && src != nullptr)
 			len = strlen(src);
-		if (src == NULL || len == 0) {
+		if (src == NULL || len <= 0) {
 			return dst.erase();
 		} else {
 			int olen(MultiByteToWideChar(srcCp, 0, src, (int)len, NULL, 0));
@@ -569,7 +571,7 @@ protected:
 	static std::string& dup(std::string& dst, CodePage dstCp, const char* src, size_t len = 0, CodePage srcCp = CodePage_UTF8) {
 		if (len == 0 && src != nullptr)
 			len = strlen(src);
-		if (src == NULL || len == 0) {
+		if (src == NULL || len <= 0) {
 			return dst.erase();
 		}
 		if (dstCp == srcCp) {
@@ -588,7 +590,7 @@ protected:
 	static std::string& dup(std::string& dst, const wchar_t* src, size_t len = 0, CodePage dstCp = CodePage_UTF8) {
 		if (len == 0 && src != nullptr)
 			len = wcslen(src);
-		if (src == nullptr || len == 0) {
+		if (src == nullptr || len <= 0) {
 			return dst.erase();
 		} else {
 			dst.resize((len + 1) * 4);
@@ -611,7 +613,7 @@ protected:
 	static std::wstring& dup(std::wstring& dst, const char* src, size_t len = 0, CodePage srcCp = CodePage_UTF8) {
 		if (len < 0 && src != nullptr)
 			len = strlen(src);
-		if (src == nullptr || len < 0) {
+		if (src == nullptr || len <= 0) {
 			return dst.erase();
 		} else {
 			dst.resize(len + 1);
@@ -631,7 +633,7 @@ protected:
 	static std::string& dup(std::string& dst, CodePage dstCp, const char* src, size_t len = 0, CodePage srcCp = CodePage_UTF8) {
 		if (len == 0 && src != nullptr)
 			len = strlen(src);
-		if (src == nullptr || len == 0) {
+		if (src == nullptr || len <= 0) {
 			return dst.erase();
 		} else {
 			if (strcmp(dstCp, srcCp) == 0) {
@@ -661,10 +663,22 @@ protected:
 	static std::wstring& dup(std::wstring& dst, const wchar_t* src, size_t len = 0, CodePage cp = CodePage_UTF8) {
 		if (len == 0 && src != nullptr)
 			len = wcslen(src);
-		if (src == nullptr || len == 0)
+		if (src == nullptr || len <= 0)
 			return dst.erase();
 		else
 			return dst.assign(src, len);
+	}
+	static int cmp(const char* left, const char* right) {
+		return strcmp(left, right);
+	}
+	static int cmp(const wchar_t* left, const wchar_t* right) {
+		return wcscmp(left, right);
+	}
+	static int cmpi(const char* left, const char* right) {
+		return _stricmp(left, right);
+	}
+	static int cmpi(const wchar_t* left, const wchar_t* right) {
+		return _wcsicmp(left, right);
 	}
 };
 
@@ -688,3 +702,8 @@ typedef std::wstring tstring;
 typedef std::string tstring;
 #endif
 
+
+#define fromACP(acp)        xtstring::convert(acp, CODEPAGE_AUTO)
+#define fromACPsz(acp)      xtstring::convert(acp, 0, CODEPAGE_AUTO)
+#define toACP(acp)          xstring<char>::convert(acp, CODEPAGE_AUTO)
+#define toACPsz(acp)        xstring<char>::convert(acp, 0, CODEPAGE_AUTO)

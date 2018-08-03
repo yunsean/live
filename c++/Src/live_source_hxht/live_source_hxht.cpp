@@ -3,7 +3,7 @@
 #include "HxhtFactory.h"
 
 ISourceFactory* GetSourceFactory() {
-	return &CHxhtFactory::Singleton();
+	return &COnvifFactory::Singleton();
 }
 
 

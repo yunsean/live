@@ -108,7 +108,8 @@ void CLogWriter::GetModuleList(xtstring& strList)
 	do 
 	{ 
 		CModuleVersion	version(me32.szExePath);
-		strList.AppendFormat(L"[0x%08x - 0x%08x]%s (%s, %s)\r\n", me32.modBaseAddr, me32.modBaseAddr + me32.modBaseSize, me32.szExePath, version.GetProductVersion(), version.GetFileVersion());
+		strList.AppendFormat(L"[0x%08x - 0x%08x]%s (%s, %s)\r\n", me32.modBaseAddr, me32.modBaseAddr + me32.modBaseSize, me32.szExePath, version.GetProductVersion().c_str(), version.GetFileVersion().c_str());
+		OutputDebugString(strList);
 	}while(Module32Next(shToolHelp32Snap, &me32));
 #endif
 }

@@ -39,6 +39,32 @@ void CChannelFactory::uninitialize() {
 	m_corruptedChannels.clear();
 }
 
+CChannel* CChannelFactory::getChannel(const xtstring& device, const xtstring& moniker, const xtstring& params) {
+	std::unique_lock<std::recursive_mutex> lock(m_lkChannels);
+	auto found(m_liveChannels.find(moniker));
+	if (found != m_liveChannels.end()) {
+		return found->second;
+	}
+	CChannelPtr spChannel(new(std::nothrow) CChannel(moniker));
+	if (spChannel == NULL) {
+		return wlet(nullptr, _T("Create CChannel() failed."));
+	}
+	ISourceProxy* source(CSourceFactory::singleton().createLiveSource(spChannel, device, moniker, params));
+	if (source == nullptr) {
+		return wlet(nullptr, _T("Create Channel Proxy failed."));
+	}
+	if (!spChannel->Startup(source)) {
+		source->Discard();
+		return wlet(nullptr, _T("Startup Channel failed."));
+	}
+	found = m_liveChannels.find(moniker);
+	if (found != m_liveChannels.end()) {
+		m_corruptedChannels.push_back(found->second);
+		m_liveChannels.erase(found);
+	}
+	m_liveChannels.insert(std::make_pair(moniker, spChannel));
+	return spChannel;
+}
 ISinkProxyCallback* CChannelFactory::bindChannel(ISinkProxy* proxy, const xtstring& device, const xtstring& moniker, const xtstring& params) {
 	std::unique_lock<std::recursive_mutex> lock(m_lkChannels);
 	auto found(m_liveChannels.find(moniker));

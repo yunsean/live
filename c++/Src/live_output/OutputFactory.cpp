@@ -32,6 +32,12 @@ bool COutputFactory::initialize(ISinkFactoryCallback* callback, bool usePlugin /
 	if (usePlugin && !initPlugin(callback))return false;
 	return true;
 }
+bool COutputFactory::handleRequest(ISinkHttpRequest* request) {
+	for (auto sp : m_vFactories) {
+		if (sp->HandleRequest(request)) return true;
+	}
+	return false;
+}
 void COutputFactory::statusInfo(Json::Value& info) {
 	typedef void(*FnFreeJson)(LPSTR);
 	for (auto sp : m_vFactories) {
@@ -62,6 +68,9 @@ bool COutputFactory::initPlugin(ISinkFactoryCallback* callback) {
 		return wlet(false, _T("find plugin failed!"));
 	}
 	if (m_vFactories.size() < 1)return false;
+	std::sort(m_vFactories.begin(), m_vFactories.end(), [](IFactoryPtr lvs, IFactoryPtr rvs) {
+		return lvs->HandleSort() - rvs->HandleSort();
+	});
 	return true;
 }
 
@@ -100,10 +109,10 @@ void COutputFactory::loadFile(LPCTSTR file, ISinkFactoryCallback* callback) {
 	}
 	LPCTSTR lpszName(spPlugin->FactoryName());
 	if (!spPlugin->Initialize(callback)) {
-		cpe(_T("加载输出插件[%s]失败"), lpszName);
+		cpe(_T("Load sink plugin[%s] failed"), lpszName);
 		return wle(L"Initialize() from [%s] failed.", path.c_str());
 	}
-	cpj(_T("加载输出插件[%s]成功"), lpszName);
+	cpj(_T("Load sink plugin[%s] ok"), lpszName);
 	m_vModules.push_back(hInstance);
 	m_vFactories.push_back(spPlugin);
 }
@@ -136,10 +145,10 @@ void COutputFactory::loadFile(LPCTSTR file, ISinkFactoryCallback* callback) {
 	}
 	LPCTSTR name(plugin->FactoryName());
 	if (!plugin->Initialize(callback)) {
-		cpe(_T("加载输出插件[%s]失败"), name);
+		cpe(_T("Load sink slugin[%s] failed"), name);
 		return wle(_T("Initialize() from [%s] failed."), file);
 	}
-	cpj(_T("加载输出插件[%s]成功"), name);
+	cpj(_T("Load sink plugin[%s] ok"), name);
 	m_vModules.push_back(module);
 	m_vFactories.push_back(plugin);
 }

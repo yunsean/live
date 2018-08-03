@@ -3,6 +3,7 @@
 #include "CommandMessage.h"
 #include "ProtocolAmf0.h"
 #include "ConsoleUI.h"
+#include "AVCConfig.h"
 #include "Writelog.h"
 #include "xutils.h"
 using namespace amf0;
@@ -11,19 +12,15 @@ CRtmpPublisher::CRtmpPublisher(uint32_t outputChunkSize)
 	: m_outputChunkSize(outputChunkSize)
 	, m_streamId(0)
 	, m_streamName()
-
-	, m_vHeaders()
+	, m_firstAudioPacket(true)
+	, m_vConfigs()
 
 	, m_lkCallback()
 	, m_lpCallback(nullptr)
 	, m_bFetching(false)
-	, m_timer(event_free) {
-	CSmartNal<uint8_t> tag(4);
-	tag.GetArr()[0] = 'N';
-	tag.GetArr()[1] = 'A';
-	tag.GetArr()[2] = 'L';
-	tag.GetArr()[3] = '\0';
-	m_vHeaders.push_back(tag);
+	, m_timer(event_free)
+
+	, m_outputCache() {
 }
 CRtmpPublisher::~CRtmpPublisher() {
 	m_lkCallback.lock();
@@ -48,7 +45,7 @@ LPCTSTR CRtmpPublisher::SourceName() const {
 bool CRtmpPublisher::StartFetch(event_base* base) {
 	std::lock_guard<std::recursive_mutex> lock(m_lkCallback);
 	m_bFetching = true;
-	for (auto header : m_vHeaders) {
+	for (auto header : m_vConfigs) {
 		m_lpCallback->OnHeaderData(header.GetArr(), header.GetSize());
 	}
 	return true;
@@ -56,11 +53,11 @@ bool CRtmpPublisher::StartFetch(event_base* base) {
 void CRtmpPublisher::WantKeyFrame() {
 
 }
-bool CRtmpPublisher::PTZControl(const PTZAction action, const int value) {
-	return false;
+ISourceProxy::ControlResult CRtmpPublisher::PTZControl(const unsigned int token, const unsigned int action, const int speed) {
+	return ISourceProxy::Failed;
 }
-bool CRtmpPublisher::VideoEffect(const int bright, const int contrast, const int saturation, const int hue) {
-	return false;
+ISourceProxy::ControlResult CRtmpPublisher::VideoEffect(const unsigned int token, const int bright, const int contrast, const int saturation, const int hue) {
+	return ISourceProxy::Failed;
 }
 bool CRtmpPublisher::Discard() {
 	std::unique_lock<std::recursive_mutex> lock(m_lkCallback, std::try_to_lock);
@@ -194,14 +191,40 @@ bool CRtmpPublisher::onVideo(CRtmpChunk* chunk) {
 		uint8_t packetType(payload[1]);
 		if (packetType == 0) {	//sequence header
 			if (size > 5) {		//Video Tag: VideoType[4B] + CodecID[4B] + AVCPacketType[UI8] + CompositionTime[UI24]
-				CSmartNal<uint8_t> header(size - 5 + 1);
-				header.GetArr()[0] = 0;	//Video
-				memcpy(header.GetArr() + 1, payload + 5, size - 5);
-				m_vHeaders.push_back(header);
+				CAVCConfig config;
+				config.Unserialize(payload + 5, size - 5);
+				CByte nal;
+				for (int i = 0; i < config.SpsCount(); i++) {
+					CSmartNal<unsigned char> sps;
+					config.GetSps(i, sps);
+					nal.AppendData(sps.GetArr(), sps.GetSize());
+				}
+				for (int i = 0; i < config.PpsCount(); i++) {
+					CSmartNal<unsigned char> pps;
+					config.GetPps(i, pps);
+					nal.AppendData(pps.GetArr(), pps.GetSize());
+				}
+				CSmartNal<uint8_t> header(4 + 1 + 4 + 2 + nal.GetSize());
+				*(reinterpret_cast<uint32_t*>(header.GetArr())) = MKFCC('1', 'L', 'A', 'N');
+				*(reinterpret_cast<uint8_t*>(header.GetArr() + 4)) = 'V';
+				*(reinterpret_cast<uint32_t*>(header.GetArr() + 5)) = MKFCC(' ', 'C', 'V', 'A');
+				*(reinterpret_cast<uint16_t*>(header.GetArr() + 9)) = static_cast<uint16_t>(nal.GetSize());
+				if (nal.GetSize() > 0) memcpy(reinterpret_cast<uint8_t*>(header.GetArr()) + 11, nal.GetData(), nal.GetSize());
+				header.SetSize(4 + 1 + 4 + 2 + nal.GetSize());
+				m_vConfigs.push_back(header);
 				if (m_lpCallback)m_lpCallback->OnHeaderData(header.GetArr(), header.GetSize());
 			}
 		} else if (m_lpCallback) {
-			m_lpCallback->OnVideoData(payload + 5, size - 5);
+			*(reinterpret_cast<uint32_t*>(payload + 5 - 4)) = static_cast<uint32_t>(chunk->timestamp());
+			uint8_t* ptr(payload + 5);
+			uint8_t* end(ptr + size - 5);
+			while (end - ptr > 4) {
+				uint32_t len(utils::uintFrom4BytesBE(ptr));
+				static const uint8_t NalHeader[] = { 0x00, 0x00, 0x00, 0x01 };
+				memcpy(ptr, NalHeader, 4);
+				ptr += len + 4;
+			}
+			m_lpCallback->OnVideoData(payload + 5 - 4, size - 5 + 4, (payload[0] & 0x10) != 0);
 		}
 	}
 	return true;
@@ -218,17 +241,38 @@ bool CRtmpPublisher::onAudio(CRtmpChunk* chunk) {
 		uint8_t packetType(payload[1]);
 		if (packetType == 0) {	//sequence header
 			if (size > 2) {		//SoundFormat[4B] + SoundRate[2B] + SoundSize[1B] + SoundType[1B] + AACPacketType[UI8]
-				CSmartNal<uint8_t> header(size - 2 + 1);
-				header.GetArr()[0] = 1;	//Audio
-				memcpy(header.GetArr() + 1, payload + 2, size - 2);
-				m_vHeaders.push_back(header);
+				CSmartNal<uint8_t> header(4 + 1 + 4 + 2 + (size - 2));
+				*(reinterpret_cast<uint32_t*>(header.GetArr())) = MKFCC('1', 'L', 'A', 'N');
+				*(reinterpret_cast<uint8_t*>(header.GetArr() + 4)) = 'A';
+				*(reinterpret_cast<uint32_t*>(header.GetArr() + 5)) = MKFCC(' ', 'C', 'A', 'A');
+				*(reinterpret_cast<uint16_t*>(header.GetArr() + 9)) = static_cast<uint16_t>(size - 2);
+				if (size - 2 > 0) memcpy(reinterpret_cast<uint8_t*>(header.GetArr()) + 11, payload + 2, size - 2);
+				header.SetSize(4 + 1 + 4 + 2 + (size - 2));
+				m_vConfigs.push_back(header);
 				if (m_lpCallback)m_lpCallback->OnHeaderData(header.GetArr(), header.GetSize());
 			}
 		} else if (m_lpCallback) {
-			m_lpCallback->OnVideoData(payload + 2, size - 2);
+			m_outputCache.EnsureSize(size - 2 + 4);
+			*(reinterpret_cast<uint32_t*>(m_outputCache.GetData())) = static_cast<uint32_t>(chunk->timestamp());
+			memcpy(m_outputCache.GetData() + 4, payload + 2, size - 2);
+			m_lpCallback->OnAudioData(m_outputCache.GetData(), size - 2 + 4);
 		}
 	} else if (codecId == Mp3) {
-		m_lpCallback->OnVideoData(payload, size);
+		if (m_firstAudioPacket) {
+			m_firstAudioPacket = false;
+			CSmartNal<uint8_t> header(4 + 1 + 4 + 2);
+			*(reinterpret_cast<uint32_t*>(header.GetArr())) = MKFCC('1', 'L', 'A', 'N');
+			*(reinterpret_cast<uint8_t*>(header.GetArr() + 4)) = 'A';
+			*(reinterpret_cast<uint32_t*>(header.GetArr() + 5)) = MKFCC(' ', '3', 'P', 'M');
+			*(reinterpret_cast<uint16_t*>(header.GetArr() + 9)) = 0;
+			header.SetSize(4 + 1 + 4 + 2);
+			m_vConfigs.push_back(header);
+			if (m_lpCallback)m_lpCallback->OnHeaderData(header.GetArr(), header.GetSize());
+		}
+		m_outputCache.EnsureSize(size + 4);
+		*(reinterpret_cast<uint32_t*>(m_outputCache.GetData())) = static_cast<uint32_t>(chunk->timestamp());
+		memcpy(m_outputCache.GetData() + 4, payload, size);
+		m_lpCallback->OnAudioData(m_outputCache.GetData(), size + 4);
 	}
 	return true;
 }

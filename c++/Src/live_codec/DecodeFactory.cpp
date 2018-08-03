@@ -11,9 +11,9 @@
 #endif
 
 #ifdef _WIN32
-#define PLUGIN_PATTERN	_T("Plugin\\sink\\*.*")
+#define PLUGIN_PATTERN	_T("Plugin\\codec\\*.*")
 #else 
-#define PLUGIN_PATTERN	_T("Plugin/sink/*.*")
+#define PLUGIN_PATTERN	_T("Plugin/codec/*.*")
 #endif
 
 CDecodeFactory::CDecodeFactory()

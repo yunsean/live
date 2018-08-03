@@ -26,10 +26,13 @@ void CSinkFactory::status(Json::Value& status) {
 }
 
 event_base* CSinkFactory::GetPreferBase() {
-	return CEventBase::singleton().nextBase();
+	return CEventBase::singleton().preferBase();
 }
 event_base** CSinkFactory::GetAllBase(int& count) {
 	return CEventBase::singleton().allBase(count);
+}
+bool CSinkFactory::handleRequest(ISinkHttpRequest* request) {
+	return COutputFactory::singleton().handleRequest(request);
 }
 ISinkProxyCallback* CSinkFactory::AddSink(ISinkProxy* proxy, LPCTSTR moniker, LPCTSTR device, LPCTSTR param /*= NULL*/) {
 	return CChannelFactory::singleton().bindChannel(proxy, device, moniker, param);

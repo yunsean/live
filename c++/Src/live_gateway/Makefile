@@ -4,21 +4,21 @@ CXX			= g++ -g -Wall -D_REENTRANT -D__USE_POSIX -D__linux__ -D__PTHREADS_MUTEXES
 CC			= 
 CXXFLAGS	= -std=c++11
 CXXFLAGS	+= -I../../linux/inc/ 
-CXXFLAGS	+= -I../live_input -I../live_output
+CXXFLAGS	+= -I../live_input -I../live_output -I../live_codec 
 
-CXXLIBS		+= -L../../linux/lib -llive_network -llive_media -llive_input -llive_output -llive_vpf -llive_logging -llive_common -llive_literal
+CXXLIBS		+= -L../../linux/lib -llive_network -llive_output -llive_codec -llive_input -llive_media -llive_vpf -llive_logging -llive_common -llive_literal
 CXXLIBS		+= -L../../linux/lib -levent -levent_core -levent_pthreads
 CXXLIBS		+= -L./usr/local/lib -lpthread -ldl
-OBJES		=	live_gateway.o \
-				SourceFactory.o \
-				EventBase.o \
-				GatewayServer.o \
-				GatewayClient.o \
-				Source.o \
-				SystemInfo.o \
-				Channel.o \
+OBJES		=	Channel.o \
 				ChannelFactory.o \
-				SinkFactory.o
+				CodecFactory.o \
+				EventBase.o \
+				GatewayClient.o \
+				GatewayServer.o \
+				live_gateway.o \
+				SinkFactory.o \
+				SourceFactory.o \
+				SystemInfo.o 
 
 SUBOBJES	= 
 SUBDIRS		= 

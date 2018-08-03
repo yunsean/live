@@ -9,7 +9,7 @@ CXXFLAGS	+= -I../live_input -I../live_output
 
 CXXLIBS		+= -L../../linux/lib -llive_network -llive_media -llive_logging -llive_common -llive_literal
 CXXLIBS		+= -L../../linux/lib -levent -levent_core -levent_pthreads
-CXXLIBS		+= -L./usr/local/lib -lpthread -ldl
+CXXLIBS		+= -L./usr/local/lib -lpthread -ldl 
 OBJES		=	live_comet.o \
 				Caller.o \
 				Engine.o \

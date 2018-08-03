@@ -25,8 +25,8 @@ protected:
 	virtual LPCTSTR SourceName() const { return m_moniker; }
 	virtual bool StartFetch(event_base* base);
 	virtual void WantKeyFrame();
-	virtual bool PTZControl(const PTZAction eAction, const int nValue);
-	virtual bool VideoEffect(const int nBright, const int nContrast, const int nSaturation, const int nHue);
+	virtual ControlResult PTZControl(const unsigned int token, const unsigned int action, const int speed);
+	virtual ControlResult VideoEffect(const unsigned int token, const int bright, const int contrast, const int saturation, const int hue);
 	virtual bool Discard();
 
 protected:

@@ -42,7 +42,7 @@ $(SHAREDLIB): $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
 	g++ -shared -fPIC -o $(SHAREDLIB) $(CFILES:.c=.o) $(CPPFILES:.cpp=.o) $(CXXLIBS) 
 	mkdir -p ../../linux/bin
 	cp -f $(SHAREDLIB) ../../linux/bin
-	mkdir -p ../live_gateway/Plugin/source/
+	mkdir -p ../live_gateway/Plugin/sink/
 	cp -f $(SHAREDLIB) ../live_gateway/Plugin/sink/
 
 $(STATICLIB): $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)

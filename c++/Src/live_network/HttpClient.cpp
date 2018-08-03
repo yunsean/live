@@ -88,22 +88,20 @@ void CHttpClient::release() {
 	delete this;
 }
 
-xtstring CHttpClient::param(const xtstring& key) const {
+LPCTSTR CHttpClient::param(LPCTSTR key) const {
 	auto found(m_params.find(key));
 	if (found == m_params.end()) {
-		return _T("");
-	}
-	else {
-		return found->second;
+		return nullptr;
+	} else {
+		return found->second.c_str();
 	}
 }
-xtstring CHttpClient::payload(const xtstring& key) const {
+LPCTSTR CHttpClient::payload(LPCTSTR key) const {
 	auto found(m_payloads.find(key));
 	if (found == m_payloads.end()) {
-		return _T("");
-	}
-	else {
-		return found->second;
+		return nullptr;
+	} else {
+		return found->second.c_str();
 	}
 }
 evbuffer* CHttpClient::input() { 

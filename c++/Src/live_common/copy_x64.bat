@@ -10,6 +10,7 @@ copy SmartNal.h ..\..\x64\inc\
 copy ShareBlk.h ..\..\x64\inc\
 copy Byte.h ..\..\x64\inc\
 copy ByteStream.h ..\..\x64\inc\
+copy BitStream.h ..\..\x64\inc\
 copy Profile.h ..\..\x64\inc\
 copy xchar.h ..\..\x64\inc\
 copy xevent.h ..\..\x64\inc\

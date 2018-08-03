@@ -1,10 +1,12 @@
 ﻿#include "EventBase.h"
 #include "Channel.h"
 #include "ChannelFactory.h"
+#include "DecodeFactory.h"
 #include "Writelog.h"
 #include "ConsoleUI.h"
 #include "json/reader.h"
 #include "xutils.h"
+#include "SmartRet.h"
 
 #define CLOSE_AFTER_INVALID_MS	(10 * 1000)
 #define CHECK_INTERVAL			(1 * 1000)
@@ -18,7 +20,7 @@ CChannel::CSinkProxy::CSinkProxy(std::recursive_mutex& mutex, CChannel* channel,
 	: m_lkProxy(mutex)
 	, m_eProxyStatus(PS_Pending)
 	, m_lpChannel(channel)
-	, m_lpProxy(proxy)
+	, m_lpSourcer(proxy)
 	, m_bDiscarded(false) {
 }
 void CChannel::CSinkProxy::WantKeyFrame() {
@@ -33,10 +35,33 @@ void CChannel::CSinkProxy::OnDiscarded() {
 void CChannel::CSinkProxy::Discard() {
 	if (m_bDiscarded) return;
 	m_eProxyStatus = PS_Discarded;
-	if (m_lpProxy->Discard()) {
+	if (m_lpSourcer->Discard()) {
 		m_bDiscarded = true;
 	}
 }
+
+
+//////////////////////////////////////////////////////////////////////////
+//CControlClient
+CChannel::CControlClient::CControlClient(const int a, const int s)
+	: bev(bufferevent_free)
+	, invalidAt(0)
+	, mode(false)
+	, state(ControlState::pending)
+	, action(a)
+	, speed(s) {
+}
+CChannel::CControlClient::CControlClient(const int b, const int c, const int s, const int h)
+	: bev(bufferevent_free)
+	, invalidAt(0)
+	, mode(true)
+	, state(ControlState::pending)
+	, bright(b)
+	, contrast(c)
+	, saturation(s)
+	, hue(h) {
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 //CChannel
@@ -45,7 +70,9 @@ CChannel::CChannel(const xtstring& moniker)
 	, m_strMoniker(moniker)
 	, m_stage(SS_Inited)
 	, m_lkProxy()
-	, m_lpProxy(nullptr)
+	, m_bNeedDecoder(false)
+	, m_lpSourcer(nullptr)
+	, m_lpDecoder(nullptr)
 
 	, m_lkSink()
 	, m_spSinks()
@@ -54,11 +81,16 @@ CChannel::CChannel(const xtstring& moniker)
 	, m_timer(nullptr)
 	, m_idleBeginAt(0)
 	, m_lockCache()
-	, m_rawHeader()
+	, m_rawHeaders()
 	, m_rawCache(8 * 1024)
 	, m_latestSendData(std::tickCount())
 	, m_rawDataSize(0)
-	, m_error() {
+	, m_error()
+
+	, m_lockClient()
+	, m_pendingClient()
+	, m_activedClient()
+	, m_token(1) {
 	cpj(_T("[%s] 创建通道"), m_strMoniker.c_str());
 	wli(_T("[%s] Create channel at: %p"), m_strMoniker.c_str(), this);
 }
@@ -67,6 +99,11 @@ CChannel::~CChannel() {
 		event_free(m_timer);
 		m_timer = nullptr;
 	}
+	for (auto cli : m_pendingClient) {
+		evutil_closesocket(cli.first);
+	}
+	m_activedClient.clear();
+	m_pendingClient.clear();
 	cpj(_T("[%s] 释放通道"), m_strMoniker.c_str());
 	wli(_T("[%s] Release channel at: %p"), m_strMoniker.c_str(), this);
 }
@@ -76,8 +113,8 @@ bool CChannel::Startup(ISourceProxy* proxy) {
 		cpe(_T("[%s] 启动输入源失败"), m_strMoniker.c_str());
 		return wlet(false, _T("Alloc body cache failed."));
 	}
-	event_base* base(CEventBase::singleton().nextBase());
-	m_lpProxy = proxy;
+	event_base* base(CEventBase::singleton().preferBase());
+	m_lpSourcer = proxy;
 	m_base = base;
 	m_timer = evtimer_new(base, timer_callback, this);
 	if (m_timer == nullptr) {
@@ -93,6 +130,20 @@ ISinkProxyCallback* CChannel::AddSink(ISinkProxy* client) {
 	CSmartPtr<CSinkProxy> callback(new CSinkProxy(m_lkSink, this, client));
 	m_spSinks.push_back(callback);
 	return callback;
+}
+bool CChannel::PTZControl(CHttpClient* client, const int action, const int speed) {
+	if (m_lpSourcer == nullptr) return false;
+	std::lock_guard<std::recursive_mutex> lock(m_lockClient);
+	m_pendingClient.insert(std::make_pair(client->fd(true), std::shared_ptr<CControlClient>(new CControlClient(action, speed))));
+	m_idleBeginAt = std::tickCount();
+	return true;
+}
+bool CChannel::VideoEffect(CHttpClient* client, const int bright, const int contrast, const int saturation, const int hue) {
+	if (m_lpSourcer == nullptr) return false;
+	std::lock_guard<std::recursive_mutex> lock(m_lockClient);
+	m_pendingClient.insert(std::make_pair(client->fd(true), std::shared_ptr<CControlClient>(new CControlClient(bright, contrast, saturation, hue))));
+	m_idleBeginAt = std::tickCount();
+	return true;
 }
 void CChannel::GetStatus(Json::Value& status) {
 	auto number2Size([](uint64_t size) -> xstring<char> {
@@ -126,7 +177,7 @@ void CChannel::GetStatus(Json::Value& status) {
 		Json::Value sink;
 		LPSTR lpsz(nullptr);
 		FnFreeJson freeXml(nullptr);
-		if (sp->m_eProxyStatus != PS_Closed && sp->m_lpProxy && sp->m_lpProxy->GetStatus(&lpsz, &freeXml) && lpsz != nullptr) {
+		if (sp->m_eProxyStatus != PS_Closed && sp->m_lpSourcer && sp->m_lpSourcer->GetStatus(&lpsz, &freeXml) && lpsz != nullptr) {
 			Json::Reader reader;
 			reader.parse(lpsz, sink);
 			if (freeXml != nullptr) freeXml(lpsz);
@@ -146,8 +197,10 @@ const char* CChannel::getStage() {
 		return "等待回收";
 	case CChannel::SS_Waiting:
 		return "关闭信源中";
-	case CChannel::SS_Closing:
+	case CChannel::SS_SinkClosing:
 		return "关闭输出中";
+	case CChannel::SS_DecodeClosing:
+		return "关闭解码器中";
 	case CChannel::SS_Closed:
 		return "已关闭";
 	default:
@@ -175,12 +228,14 @@ const char* CChannel::getStatus(ProxyStatus status) {
 
 void CChannel::WantKeyFrame() {
 	std::lock_guard<std::recursive_mutex> lock3(m_lkProxy);
-	if (m_lpProxy != nullptr) m_lpProxy->WantKeyFrame();
+	if (m_lpSourcer != nullptr) m_lpSourcer->WantKeyFrame();
 }
 void CChannel::OnMediaData(ISinkProxy::PackType type, const uint8_t* const data, const int size, const bool key /* = true */) {
 	if (type == ISinkProxy::Header) {
 		std::lock_guard<std::mutex> lock2(m_lockCache);
-		m_rawHeader.AppendData(data, size);
+		CSmartNal<uint8_t> nal;
+		nal.Copy(data, size);
+		m_rawHeaders.push_back(nal);
 	}
 	if (m_stage == SS_Fetching) {
 		std::lock_guard<std::mutex> lock2(m_lockCache);
@@ -215,6 +270,8 @@ void CChannel::timer_callback(evutil_socket_t fd, short events, void* context) {
 	thiz->timer_callback(fd, events);
 }
 void CChannel::timer_callback(evutil_socket_t fd, short events) {
+	handleControlRequest();
+
 	bool continous(true);
 	switch (m_stage) {
 	case CChannel::SS_Inited:
@@ -229,26 +286,96 @@ void CChannel::timer_callback(evutil_socket_t fd, short events) {
 	case CChannel::SS_Waiting:
 		continous = onWaiting();
 		break;
-	case CChannel::SS_Closing:
-		continous = onClosing();
+	case CChannel::SS_SinkClosing:
+		continous = onSinkClosing();
+		break;
+	case CChannel::SS_DecodeClosing:
+		continous = onDecodeClosing();
 		break;
 	case CChannel::SS_Closed: 
 		continous = onClosed();
 		break;
 	}
+
 	if (continous) {
 		static struct timeval tv = { 0, 50 * 1000 };
 		event_add(m_timer, &tv);
 	}
 }
+void CChannel::handleControlRequest() {
+	std::lock_guard<std::recursive_mutex> lock(m_lockClient);
+	if (m_pendingClient.size() > 0) {
+		auto invalidAt(std::tickCount() + 5 * 1000);
+		for (auto client : m_pendingClient) {
+			cliptr cli(client.second);
+			bevptr bev(bufferevent_socket_new(m_base, client.first, BEV_OPT_CLOSE_ON_FREE), bufferevent_free);
+			if (bev == NULL) {
+				evutil_closesocket(client.first);
+				wle(_T("Create buffer event for client failed."));
+				continue;
+			}
+			cli->bev = bev;
+			bufferevent_setcb(bev, NULL, NULL, on_error, cli.get());
+			if (bufferevent_enable(bev, EV_READ | EV_WRITE) != 0) {
+				wle(_T("Set event for client failed."));
+				continue;
+			}
+			cli->invalidAt = invalidAt;
+			handleControl(cli);
+		}
+		m_pendingClient.clear();
+	}
+	auto tickCount(std::tickCount());
+	for (auto it = m_activedClient.begin(); it != m_activedClient.end(); ) {
+		cliptr cli(it->second);
+		auto current(it++);
+		if (cli->state == pending && cli->invalidAt < tickCount) cli->state = failed;
+		if (cli->state == finished) sendResponse(cli);
+		else if (cli->state == failed) sendResponse(cli, 400, "Failed");
+		if (cli->state == closed) m_activedClient.erase(current);
+	}
+}
+void CChannel::handleControl(cliptr cli) {
+	int token = m_token++;
+	m_activedClient.insert(std::make_pair(token, cli));
+	auto result(cli->mode ? m_lpSourcer->VideoEffect(token, cli->bright, cli->contrast, cli->saturation, cli->hue) : m_lpSourcer->PTZControl(token, cli->action, cli->speed));
+	if (result == ISourceProxy::Failed) sendResponse(cli, 400, "Failed");
+	else if (result == ISourceProxy::Finished) sendResponse(cli);
+}
+void CChannel::sendResponse(cliptr cli, int code /* = 20 */, const char* status /* = "OK" */) {
+	xstring<char> strHeader;
+	strHeader.Format("HTTP/1.1 %d %s\r\n", code, status);
+	strHeader += "Server: simplehttp\r\n";
+	strHeader += "Connection: close\r\n";
+	strHeader += "Cache-Control: no-cache\r\n";
+	strHeader += "Content-Length: 0\r\n";
+	strHeader += "\r\n";
+	const char* data(strHeader.c_str());
+	const size_t size(strHeader.length());
+	bufferevent_write(cli->bev, data, size);
+	bufferevent_flush(cli->bev, EV_WRITE, BEV_FLUSH);
+	cli->state = over;
+}
+void CChannel::on_error(struct bufferevent* bev, short what, void* context) {
+	CControlClient* cli(reinterpret_cast<CControlClient*>(context));
+	if (what & (BEV_EVENT_ERROR | BEV_EVENT_EOF | BEV_EVENT_TIMEOUT)) {
+		cli->state = closed;
+	}
+}
 
 bool CChannel::onInited() {
+	if (m_spSinks.size() < 1) {
+		uint32_t tickCount(std::tickCount());
+		if (m_idleBeginAt == 0) m_idleBeginAt = tickCount;
+		else if (tickCount - m_idleBeginAt > RELEASE_NODATA_MS) SetStage(SS_Discard);
+		return true;
+	}
 	std::unique_lock<std::recursive_mutex> lock(m_lkProxy);
-	if (!m_lpProxy->StartFetch(m_base)) {
+	if (!m_lpSourcer->StartFetch(m_base)) {
 		wle(_T("StartFetch() failed."));
-		cpe(_T("[%s] 启动输入源失败"), m_lpProxy->SourceName());
-		m_lpProxy = NULL;
-		SetStage(SS_Closing);
+		cpe(_T("[%s] 启动输入源失败"), m_lpSourcer->SourceName());
+		m_lpSourcer = NULL;
+		SetStage(SS_SinkClosing);
 	} else {
 		SetStage(SS_Fetching);
 	}
@@ -277,6 +404,21 @@ bool CChannel::onFetching() {
 		SetStage(SS_Discard);
 		return true;
 	}
+
+	if (m_lpDecoder == nullptr && m_bNeedDecoder && m_rawHeaders.size() > 0) {
+		if (!CreateDecoder()) {
+			wle(_T("Create decoder failed, will discard all sinks which need compression data."));
+			for (auto sink : m_spSinks) {
+				if (sink->m_eProxyStatus != PS_Compressed && sink->m_eProxyStatus != PS_Baseband) continue;
+				sink->Discard();
+			}
+			m_bNeedDecoder = false;
+		}
+	} else if (m_lpDecoder != nullptr && !m_bNeedDecoder) {
+		if (m_lpDecoder->Discard()) {
+			m_lpDecoder = nullptr;
+		}
+	}
 	
 	std::lock_guard<std::mutex> lock2(m_lockCache);
 	if (m_rawCache.GetSize() > 0) {
@@ -291,7 +433,28 @@ bool CChannel::onFetching() {
 			if (pos + size > end) break;
 			for (auto sink : m_spSinks) {
 				if (sink->m_eProxyStatus != PS_Raw) continue;
-				sink->m_lpProxy->OnRawPack((ISinkProxy::PackType)type, pos, size, key != 0);
+				sink->m_lpSourcer->OnRawPack((ISinkProxy::PackType)type, pos, size, key != 0);
+			}
+			if (m_lpDecoder != nullptr) {
+				switch (type) {
+				case ISinkProxy::Header:
+					m_lpDecoder->AddHeader(pos, size);
+					break;
+				case ISinkProxy::Video:
+					m_lpDecoder->AddVideo(pos, size);
+					break;
+				case ISinkProxy::Audio:
+					m_lpDecoder->AddAudio(pos, size);
+					break;
+				case ISinkProxy::Error:
+					if (m_lpDecoder->Discard()) {
+						m_lpDecoder = nullptr;
+					}
+					break;
+				case ISinkProxy::Custom:
+					m_lpDecoder->AddCustom(pos, size);
+					break;
+				}
 			}
 			pos += size;
 		}
@@ -304,19 +467,24 @@ bool CChannel::onFetching() {
 		[this, &hasNewSink](CSmartPtr<CSinkProxy>& sink) -> bool {
 		if (sink->m_eProxyStatus == PS_Closed) return true;
 		if (sink->m_eProxyStatus != PS_Pending) return false;
-		if (!sink->m_lpProxy->StartWrite(m_base)) {
+		if (!sink->m_lpSourcer->StartWrite(m_base)) {
 			sink->Discard();
 		} else {
-			ISinkProxy::CodecType type(sink->m_lpProxy->PreferCodec());
+			ISinkProxy::CodecType type(sink->m_lpSourcer->PreferCodec());
 			switch (type) {
 			case ISinkProxy::CodecType::Raw:
-				if (m_rawHeader.GetSize() > 0) {
-					sink->m_lpProxy->OnRawPack(ISinkProxy::Header, m_rawHeader, m_rawHeader, true);
+				for (auto nal : m_rawHeaders) {
+					sink->m_lpSourcer->OnRawPack(ISinkProxy::Header, nal.GetArr(), nal.GetSize(), true);
 				}
 				sink->m_eProxyStatus = PS_Raw;
 				break;
 			case ISinkProxy::CodecType::Compressed:
 				sink->m_eProxyStatus = PS_Compressed;
+				m_bNeedDecoder = true;
+				if (m_rawHeaders.size() > 0 && !CreateDecoder()) {
+					wle(_T("Create decoder failed."));
+					sink->Discard();
+				}
 				break;
 			case ISinkProxy::CodecType::Baseband:
 				sink->m_eProxyStatus = PS_Baseband;
@@ -333,20 +501,20 @@ bool CChannel::onFetching() {
 }
 bool CChannel::onDiscard() {
 	std::unique_lock<std::recursive_mutex> lock(m_lkProxy);
-	if (m_lpProxy != NULL) {
-		if (m_lpProxy->Discard() && m_stage == SS_Discard) {
+	if (m_lpSourcer != NULL) {
+		if (m_lpSourcer->Discard() && m_stage == SS_Discard) {
 			wli(_T("[%s] Convert stage to Closing."), m_strMoniker.c_str());
 			SetStage(SS_Waiting);
 		}
 	} else {
-		SetStage(SS_Closing);
+		SetStage(SS_SinkClosing);
 	}
 	return true;
 }
 bool CChannel::onWaiting() {
 	return true;
 }
-bool CChannel::onClosing() {
+bool CChannel::onSinkClosing() {
 	std::lock_guard<std::recursive_mutex> lock(m_lkSink);
 	m_spSinks.erase(std::remove_if(m_spSinks.begin(), m_spSinks.end(), 
 		[this](CSmartPtr<CSinkProxy>& sink) -> bool {
@@ -357,13 +525,37 @@ bool CChannel::onClosing() {
 		return false;
 	}), m_spSinks.end());
 	if (m_spSinks.size() == 0) {
-		SetStage(SS_Closed);
+		SetStage(SS_DecodeClosing);
 	}
+	return true;
+}
+bool CChannel::onDecodeClosing() {
+	if (m_lpDecoder != nullptr && !m_lpDecoder->Discard()) {
+		return true;
+	}
+	SetStage(SS_Closed);
 	return true;
 }
 bool CChannel::onClosed() {
 	CChannelFactory::singleton().unbindChannel(this);
 	return false;
+}
+
+bool CChannel::CreateDecoder() {
+	if (m_rawHeaders.size() < 1) return wlet(false, _T("No header found."));
+	CSmartPtr<IDecodeProxy> decoder(CDecodeFactory::singleton().createDecoder(this, m_rawHeaders[0].GetArr(), m_rawHeaders[0].GetSize()), 
+		[](IDecodeProxy* lp) {
+		lp->Discard();
+	});
+	if (decoder == nullptr) return wlet(false, _T("Not found any decoder can support this source."));
+	if (!decoder->Start()) return wlet(false, _T("Start decoder failed"));
+	for (auto header : m_rawHeaders) {
+		if (!decoder->AddHeader(header.GetArr(), header.GetSize())) {
+			return wlet(false, _T("Add header to decoder failed"));
+		}
+	}
+	m_lpDecoder = decoder.Detach();
+	return true;
 }
 
 void CChannel::OnHeaderData(const uint8_t* const data, const int size) {
@@ -387,12 +579,60 @@ void CChannel::OnError(LPCTSTR reason) {
 void CChannel::OnStatistics(LPCTSTR statistics) {
 
 }
+void CChannel::OnControlResult(const unsigned int token, bool result, LPCTSTR reason) {
+	std::lock_guard<std::recursive_mutex> lock(m_lockClient);
+	auto found(m_activedClient.find(token));
+	if (found == m_activedClient.end()) return;
+	auto cli(found->second);
+	cli->state = result ? finished : failed;
+}
 void CChannel::OnDiscarded() {
 	wle(_T("[%s] OnDiscarded()."), m_strMoniker.c_str());
 	std::unique_lock<std::recursive_mutex> lock(m_lkProxy);
-	m_lpProxy = NULL;
+	m_lpSourcer = NULL;
 	if (m_stage == SS_Fetching) {
 		OnError(_T("Source Closed."));
 	}
-	SetStage(SS_Closing);
+	SetStage(SS_SinkClosing);
+}
+
+void CChannel::OnVideoFormat(const CodecID codec, const int width, const int height, const double fps) {
+	m_videoCodec = codec;
+}
+void CChannel::OnVideoConfig(const CodecID codec, const uint8_t* header, const int size) {
+	//TODO 处理跨线程回调
+	m_videoCodec = codec;
+	for (auto sink : m_spSinks) {
+		if (sink->m_eProxyStatus != PS_Compressed) continue;
+		sink->m_lpSourcer->OnVideoConfig((ISinkProxy::CodecID)codec, header, size);
+	}
+}
+void CChannel::OnVideoFrame(const uint8_t* const data, const int size, const uint32_t pts) {
+	//TODO 处理跨线程回调
+	if (m_videoCodec == CodecID::AVC) {
+		for (auto sink : m_spSinks) {
+			if (sink->m_eProxyStatus != PS_Compressed) continue;
+			sink->m_lpSourcer->OnVideoFrame(data, size, pts);
+		}
+	}
+}
+void CChannel::OnAudioFormat(const CodecID codec, const int channel, const int bitwidth, const int samplerate) {
+	m_audioCodec = codec;
+}
+void CChannel::OnAudioConfig(const CodecID codec, const uint8_t* header, const int size) {
+	//TODO 处理跨线程回调
+	m_audioCodec = codec;
+	for (auto sink : m_spSinks) {
+		if (sink->m_eProxyStatus != PS_Compressed) continue;
+		sink->m_lpSourcer->OnAudioConfig((ISinkProxy::CodecID)codec, header, size);
+	}
+}
+void CChannel::OnAudioFrame(const uint8_t* const data, const int size, const uint32_t pts) {
+	//TODO 处理跨线程回调
+	if (m_audioCodec == CodecID::AAC) {
+		for (auto sink : m_spSinks) {
+			if (sink->m_eProxyStatus != PS_Compressed) continue;
+			sink->m_lpSourcer->OnAudioFrame(data, size, pts);
+		}
+	}
 }

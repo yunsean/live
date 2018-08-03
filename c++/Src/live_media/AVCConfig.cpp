@@ -4,10 +4,10 @@
 #include "BitWriter.h"
 
 CAVCConfig::CAVCConfig(void)
-	: configurationVersion(1)
-	, profileIndication(0)
-	, profile_compatibility(0)
-	, levelIndication(0)
+	: configurationVersion(0x01)
+	, profileIndication(0x42)
+	, profile_compatibility(0xc0)
+	, levelIndication(0x33)
 	, lengthSizeMinusOne(3)
 
 	, m_vsnSPS(new std::vector<CSmartNal<unsigned char>>)
@@ -64,13 +64,15 @@ void CAVCConfig::Unserialize(const unsigned char* const config, const int size) 
 	bp.GetBits(6);
 	lengthSizeMinusOne		= bp.GetBits(2);
 
+	static const uint8_t	NalHeader[] = { 0x00, 0x00, 0x00, 0x01 };
 	bp.GetBits(3);
 	int						numOfSPS(bp.GetBits(5));
 	for (int i =0; i < numOfSPS; i++) {
 		int					size(bp.GetBits(16));
 		int					offset(bp.GetBitsOffset());
-		CSmartNal<unsigned char>		sps(size);
-		memcpy(sps.GetArr(), config + offset / 8, size);
+		CSmartNal<unsigned char>		sps(size + 4);
+		memcpy(sps.GetArr(), NalHeader, 4);
+		memcpy(sps.GetArr() + 4, config + offset / 8, size);
 		bp.SkipBits(size * 8);
 		m_vsnSPS->push_back(sps);
 	};
@@ -79,8 +81,9 @@ void CAVCConfig::Unserialize(const unsigned char* const config, const int size) 
 	for (int i =0; i < numOfPPS; i++) {
 		int					size(bp.GetBits(16));
 		int					offset(bp.GetBitsOffset());
-		CSmartNal<unsigned char>		pps(size);
-		memcpy(pps.GetArr(), config + offset / 8, size);
+		CSmartNal<unsigned char>		pps(size + 4);
+		memcpy(pps.GetArr(), NalHeader, 4);
+		memcpy(pps.GetArr() + 4, config + offset / 8, size);
 		bp.SkipBits(size * 8);
 		m_vsnPPS->push_back(pps);
 	};

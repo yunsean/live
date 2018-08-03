@@ -24,12 +24,12 @@ bool CNalFactory::Initialize() {
 }
 bool CNalFactory::DidSupport(const uint8_t* const header, const int length) {
 	if (length < 4) return false;
-	if (header[0] != 'N' || header[1] != 'A' || header[2] != 'L' || header[3] != '1') return false;
+	if (header[3] != 'N' || header[2] != 'A' || header[1] != 'L' || header[0] != '1') return false;
 	return true;
 }
 IDecodeProxy* CNalFactory::CreateDecoder(IDecodeProxyCallback* callback, const uint8_t* const header, const int length) {
 	if (length < 4) return nullptr;
-	if (header[0] != 'N' || header[1] != 'A' || header[2] != 'L' || header[3] != '1') return nullptr;
+	if (header[3] != 'N' || header[2] != 'A' || header[1] != 'L' || header[0] != '1') return nullptr;
 	return new CNalDemuxer(callback);
 }
 bool CNalFactory::GetStatusInfo(LPSTR* json, void(**free)(LPSTR)) {
